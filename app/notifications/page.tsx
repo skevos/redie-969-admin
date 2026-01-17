@@ -9,10 +9,10 @@ const supabase = createClient(
 );
 
 const NOTIFICATION_TYPES = [
-  { value: 'general', label: '📢 Γενική', emoji: '📢', color: '#e53935' },
-  { value: 'show', label: '🎙️ Εκπομπή', emoji: '🎙️', color: '#9333ea' },
-  { value: 'offer', label: '🎁 Προσφορά', emoji: '🎁', color: '#f97316' },
-  { value: 'news', label: '📰 Νέα', emoji: '📰', color: '#3b82f6' },
+  { value: 'general', label: '📢 Γενική', color: '#e53935' },
+  { value: 'show', label: '🎙️ Εκπομπή', color: '#9333ea' },
+  { value: 'offer', label: '🎁 Προσφορά', color: '#f97316' },
+  { value: 'news', label: '📰 Νέα', color: '#3b82f6' },
 ];
 
 export default function NotificationsPage() {
@@ -49,15 +49,10 @@ export default function NotificationsPage() {
     setSending(true);
     setResult(null);
 
-    // Get emoji for selected type
-    const typeConfig = NOTIFICATION_TYPES.find(t => t.value === type);
-    const emoji = typeConfig?.emoji || '📢';
-    const finalTitle = `${emoji} ${title}`;
-
     try {
       // 1. Save to app_notifications table
       await supabase.from('app_notifications').insert({
-        title: finalTitle,
+        title,
         body,
         type
       });
@@ -85,7 +80,7 @@ export default function NotificationsPage() {
           const res = await fetch('/api/send-notification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: t.token, title: finalTitle, body })
+            body: JSON.stringify({ token: t.token, title, body })
           });
           
           if (res.ok) {
@@ -116,12 +111,6 @@ export default function NotificationsPage() {
   function formatTime(dateStr: string) {
     const date = new Date(dateStr);
     return date.toLocaleString('el-GR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-  }
-
-  function getTypeColor(itemType: string) {
-    if (itemType === 'chat') return '#22c55e';
-    const config = NOTIFICATION_TYPES.find(t => t.value === itemType);
-    return config?.color || '#e53935';
   }
 
   return (
@@ -192,9 +181,8 @@ export default function NotificationsPage() {
           <div style={{ background: 'white', borderRadius: 20, padding: 28, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', border: '1px solid #f3f4f6' }}>
             <h2 style={{ margin: '0 0 24px', fontSize: 18, fontWeight: 700, color: '#1f2937' }}>📤 Νέα Ειδοποίηση</h2>
             
-            {/* Type Selection */}
             <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 10 }}>Τύπος</label>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 8 }}>Τύπος</label>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {NOTIFICATION_TYPES.map(t => (
                   <button
@@ -209,7 +197,6 @@ export default function NotificationsPage() {
                       fontSize: 14,
                       fontWeight: 500,
                       cursor: 'pointer',
-                      transition: 'all 0.2s',
                     }}
                   >
                     {t.label}
@@ -224,10 +211,9 @@ export default function NotificationsPage() {
                 type="text"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                placeholder="π.χ. Νέα Εκπομπή!"
+                placeholder="π.χ. 🎉 Νέα Εκπομπή!"
                 style={{ width: '100%', padding: '14px 18px', border: '2px solid #e5e7eb', borderRadius: 12, fontSize: 15, outline: 'none', boxSizing: 'border-box' }}
               />
-              <p style={{ margin: '6px 0 0', fontSize: 12, color: '#9ca3af' }}>Το emoji θα προστεθεί αυτόματα</p>
             </div>
 
             <div style={{ marginBottom: 20 }}>
@@ -277,7 +263,31 @@ export default function NotificationsPage() {
 
           {/* History */}
           <div style={{ background: 'white', borderRadius: 20, padding: 28, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', border: '1px solid #f3f4f6' }}>
-            <h2 style={{ margin: '0 0 24px', fontSize: 18, fontWeight: 700, color: '#1f2937' }}>📋 Ιστορικό</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1f2937' }}>📋 Ιστορικό</h2>
+              {history.length > 0 && (
+                <button
+                  onClick={async () => {
+                    if (confirm('Διαγραφή όλων των ειδοποιήσεων;')) {
+                      await supabase.from('app_notifications').delete().neq('id', 0);
+                      loadHistory();
+                    }
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    background: '#fee2e2',
+                    color: '#dc2626',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  🗑️ Καθαρισμός
+                </button>
+              )}
+            </div>
             
             {loadingHistory ? (
               <div style={{ textAlign: 'center', padding: 40 }}>
@@ -290,21 +300,48 @@ export default function NotificationsPage() {
               </div>
             ) : (
               <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-                {history.map((item, i) => (
-                  <div key={i} style={{
-                    padding: '14px 16px',
-                    background: '#f9fafb',
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    borderLeft: `4px solid ${getTypeColor(item.type)}`
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                      <span style={{ fontWeight: 600, fontSize: 14, color: '#1f2937' }}>{item.title}</span>
-                      <span style={{ fontSize: 11, color: '#9ca3af' }}>{formatTime(item.created_at)}</span>
+                {history.map((item, i) => {
+                  const typeConfig = NOTIFICATION_TYPES.find(t => t.value === item.type) || { color: '#e53935', label: '📢' };
+                  const emoji = item.type === 'chat' ? '💬' : typeConfig.label.split(' ')[0];
+                  const color = item.type === 'chat' ? '#22c55e' : typeConfig.color;
+                  
+                  return (
+                    <div key={i} style={{
+                      padding: '14px 16px',
+                      background: '#f9fafb',
+                      borderRadius: 12,
+                      marginBottom: 10,
+                      borderLeft: `4px solid ${color}`,
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                          <span style={{ fontWeight: 600, fontSize: 14, color: '#1f2937' }}>{emoji} {item.title}</span>
+                          <span style={{ fontSize: 11, color: '#9ca3af' }}>{formatTime(item.created_at)}</span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>{item.body}</p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          await supabase.from('app_notifications').delete().eq('id', item.id);
+                          loadHistory();
+                        }}
+                        style={{
+                          marginLeft: 12,
+                          padding: '4px 8px',
+                          background: 'transparent',
+                          color: '#9ca3af',
+                          border: 'none',
+                          fontSize: 16,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ✕
+                      </button>
                     </div>
-                    <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>{item.body}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
