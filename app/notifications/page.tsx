@@ -1,15 +1,20 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function NotificationsPage() {
   const [form, setForm] = useState({ title: '', body: '', type: 'general' });
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
-  const [history, setHistory] = useState<any[]>([
-    { id: 1, title: 'Νέα Εκπομπή!', body: 'Ξεκινάει η εκπομπή "Morning Show" σε 10 λεπτά!', type: 'show', sent_at: new Date().toISOString() },
-    { id: 2, title: 'Ειδική Προσφορά', body: 'Κέρδισε δώρα με την εφαρμογή REDIE 969!', type: 'promo', sent_at: new Date(Date.now() - 86400000).toISOString() },
-  ]);
+  const [error, setError] = useState('');
+  const [history, setHistory] = useState<any[]>([]);
+  const [stats, setStats] = useState({ total: 0, success: 0, failed: 0 });
 
   const notificationTypes = [
     { id: 'general', label: 'Γενικό', icon: '📢', color: '#3b82f6' },
@@ -18,20 +23,110 @@ export default function NotificationsPage() {
     { id: 'news', label: 'Νέα', icon: '📰', color: '#22c55e' },
   ];
 
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  async function loadHistory() {
+    try {
+      const { data } = await supabase
+        .from('notification_history')
+        .select('*')
+        .order('sent_at', { ascending: false })
+        .limit(20);
+      if (data) setHistory(data);
+    } catch (e) {
+      // Table might not exist yet
+    }
+  }
+
   async function sendNotification() {
     if (!form.title || !form.body) return alert('Συμπλήρωσε τίτλο και μήνυμα!');
     
     setSending(true);
+    setError('');
     
-    // Simulate API call
-    await new Promise(r => setTimeout(r, 1500));
+    try {
+      // Get all FCM tokens
+      const { data: tokens, error: tokensError } = await supabase
+        .from('fcm_tokens')
+        .select('token');
+      
+      if (tokensError) throw tokensError;
+      if (!tokens || tokens.length === 0) {
+        setError('Δεν υπάρχουν συσκευές εγγεγραμμένες!');
+        setSending(false);
+        return;
+      }
+
+      let successCount = 0;
+      let failCount = 0;
+
+      // Send to each token
+      for (const { token } of tokens) {
+        try {
+          const response = await fetch('/api/send-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: form.title,
+              body: form.body,
+              token: token
+            })
+          });
+
+          const result = await response.json();
+          
+          if (response.ok && !result.error) {
+            successCount++;
+          } else {
+            failCount++;
+            console.error('Failed for token:', token, result);
+          }
+        } catch (e) {
+          failCount++;
+          console.error('Error sending to token:', token, e);
+        }
+      }
+
+      // Save to history
+      try {
+        await supabase.from('notification_history').insert({
+          title: form.title,
+          body: form.body,
+          type: form.type,
+          sent_at: new Date().toISOString(),
+          success_count: successCount,
+          fail_count: failCount
+        });
+      } catch (e) {
+        // History table might not exist
+      }
+
+      setStats({ total: tokens.length, success: successCount, failed: failCount });
+      
+      if (successCount > 0) {
+        setSent(true);
+        setHistory(prev => [{ 
+          id: Date.now(), 
+          title: form.title,
+          body: form.body,
+          type: form.type,
+          sent_at: new Date().toISOString(),
+          success_count: successCount,
+          fail_count: failCount
+        }, ...prev]);
+        setForm({ title: '', body: '', type: 'general' });
+        setTimeout(() => setSent(false), 5000);
+      } else {
+        setError(`Αποτυχία αποστολής σε όλες τις συσκευές (${failCount})`);
+      }
+      
+    } catch (e: any) {
+      setError(e.message || 'Σφάλμα αποστολής');
+    }
     
-    setHistory(prev => [{ id: Date.now(), ...form, sent_at: new Date().toISOString() }, ...prev]);
     setSending(false);
-    setSent(true);
-    setForm({ title: '', body: '', type: 'general' });
-    
-    setTimeout(() => setSent(false), 3000);
   }
 
   function formatDate(date: string) {
@@ -106,7 +201,19 @@ export default function NotificationsPage() {
               {sent && (
                 <div style={{ padding: 16, background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)', borderRadius: 14, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span>✅</span>
-                  <p style={{ margin: 0, color: '#166534', fontWeight: 600 }}>Το notification στάλθηκε επιτυχώς!</p>
+                  <div>
+                    <p style={{ margin: 0, color: '#166534', fontWeight: 600 }}>Επιτυχής αποστολή!</p>
+                    <p style={{ margin: '4px 0 0 0', color: '#166534', fontSize: 13 }}>
+                      {stats.success}/{stats.total} συσκευές
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div style={{ padding: 16, background: 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)', borderRadius: 14, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span>❌</span>
+                  <p style={{ margin: 0, color: '#991b1b', fontWeight: 600 }}>{error}</p>
                 </div>
               )}
 
@@ -143,7 +250,7 @@ export default function NotificationsPage() {
                   value={form.title}
                   onChange={e => setForm({...form, title: e.target.value})}
                   placeholder="π.χ. Νέα Εκπομπή Τώρα!"
-                  style={{ width: '100%', padding: '14px 18px', border: '2px solid #e5e7eb', borderRadius: 14, fontSize: 15, outline: 'none', transition: 'border-color 0.2s' }}
+                  style={{ width: '100%', padding: '14px 18px', border: '2px solid #e5e7eb', borderRadius: 14, fontSize: 15, outline: 'none', transition: 'border-color 0.2s', boxSizing: 'border-box' }}
                 />
               </div>
 
@@ -155,7 +262,7 @@ export default function NotificationsPage() {
                   onChange={e => setForm({...form, body: e.target.value})}
                   placeholder="Γράψε το μήνυμα που θα λάβουν οι χρήστες..."
                   rows={4}
-                  style={{ width: '100%', padding: '14px 18px', border: '2px solid #e5e7eb', borderRadius: 14, fontSize: 15, outline: 'none', resize: 'none', fontFamily: 'inherit' }}
+                  style={{ width: '100%', padding: '14px 18px', border: '2px solid #e5e7eb', borderRadius: 14, fontSize: 15, outline: 'none', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
                 />
               </div>
 
@@ -217,7 +324,7 @@ export default function NotificationsPage() {
                   <p style={{ color: '#6b7280', marginTop: 16 }}>Δεν έχουν σταλεί notifications</p>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 500, overflowY: 'auto' }}>
                   {history.map(item => {
                     const type = notificationTypes.find(t => t.id === item.type);
                     return (
@@ -231,7 +338,12 @@ export default function NotificationsPage() {
                               <p style={{ fontWeight: 700, color: '#1f2937', margin: 0, fontSize: 14 }}>{item.title}</p>
                               <span style={{ color: '#9ca3af', fontSize: 11 }}>{formatDate(item.sent_at)}</span>
                             </div>
-                            <p style={{ color: '#6b7280', margin: 0, fontSize: 13 }}>{item.body}</p>
+                            <p style={{ color: '#6b7280', margin: '0 0 6px 0', fontSize: 13 }}>{item.body}</p>
+                            {item.success_count !== undefined && (
+                              <p style={{ color: '#22c55e', margin: 0, fontSize: 11, fontWeight: 600 }}>
+                                ✓ {item.success_count} επιτυχείς {item.fail_count > 0 && <span style={{ color: '#ef4444' }}>• {item.fail_count} αποτυχίες</span>}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>

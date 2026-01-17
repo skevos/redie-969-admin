@@ -225,6 +225,21 @@ export default function Dashboard() {
             <span style={{ fontSize: 14, fontWeight: 500 }}>Schedule</span>
           </Link>
 
+          <Link href="/producers" style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 14, 
+            padding: '12px 14px', 
+            color: 'rgba(255,255,255,0.7)', 
+            borderRadius: 12,
+            textDecoration: 'none',
+            marginBottom: 6,
+            transition: 'all 0.2s'
+          }}>
+            <span style={{ fontSize: 18 }}>🎤</span>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>Παραγωγοί</span>
+          </Link>
+
           <Link href="/studio" style={{ 
             display: 'flex', 
             alignItems: 'center', 

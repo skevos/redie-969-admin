@@ -6,12 +6,18 @@ import { supabase } from "../lib/supabase";
 export default function StudioChatPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
-  const [roomId, setRoomId] = useState<number | null>(null);
+  const [autoMode, setAutoMode] = useState(true);
+  const [roomId, setRoomId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [pinnedMessage, setPinnedMessage] = useState<string>('');
+  const [nextShow, setNextShow] = useState<any>(null);
+  const [replyText, setReplyText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { loadChat(); }, []);
+  useEffect(() => { 
+    loadChat(); 
+    loadNextShow();
+  }, []);
 
   useEffect(() => {
     if (!roomId) return;
@@ -30,44 +36,147 @@ export default function StudioChatPage() {
   async function loadChat() {
     const { data: config } = await supabase.from('chat_config').select('*').eq('id', 1).single();
     setChatOpen(config?.is_chat_open || false);
+    setAutoMode(config?.auto_mode ?? true);
     setRoomId(config?.active_room_id || null);
     
     if (config?.active_room_id) {
       const { data: msgs } = await supabase.from('chat_messages').select('*').eq('room_id', config.active_room_id).order('created_at', { ascending: true });
       setMessages(msgs || []);
+      
+      // Find pinned message
+      const pinned = msgs?.find(m => m.is_pinned);
+      if (pinned) setPinnedMessage(pinned.message);
     }
     setLoading(false);
   }
 
-  async function toggleChat() {
-    if (chatOpen) {
-      await supabase.from('chat_config').update({ is_chat_open: false }).eq('id', 1);
-      setChatOpen(false);
+  async function loadNextShow() {
+    const now = new Date();
+    const currentDay = (now.getDay() + 6) % 7;
+    const currentTime = now.toTimeString().slice(0, 5);
+    
+    const { data: todayShows } = await supabase
+      .from('shows')
+      .select('*')
+      .eq('day_of_week', currentDay)
+      .gte('start_time', currentTime)
+      .order('start_time')
+      .limit(1);
+    
+    if (todayShows && todayShows.length > 0) {
+      setNextShow(todayShows[0]);
     } else {
-      const title = "Live Chat - " + new Date().toLocaleDateString('el-GR');
-      const { data: room } = await supabase.from('chat_rooms').insert({ title, is_closed: false, starts_at: new Date().toISOString() }).select().single();
-      if (room) {
-        await supabase.from('chat_config').update({ active_room_id: room.id, is_chat_open: true }).eq('id', 1);
-        setRoomId(room.id);
-        setChatOpen(true);
-        setMessages([]);
+      const tomorrow = (currentDay + 1) % 7;
+      const { data: tomorrowShows } = await supabase
+        .from('shows')
+        .select('*')
+        .eq('day_of_week', tomorrow)
+        .order('start_time')
+        .limit(1);
+      
+      if (tomorrowShows && tomorrowShows.length > 0) {
+        setNextShow(tomorrowShows[0]);
       }
     }
   }
 
-  async function deleteMessage(id: number) {
+  async function openChat() {
+    const title = "Live Chat - " + new Date().toLocaleDateString('el-GR');
+    const { data: room, error } = await supabase.from('chat_rooms').insert({ 
+      title, 
+      is_closed: false, 
+      starts_at: new Date().toISOString() 
+    }).select().single();
+    
+    if (room && !error) {
+      await supabase.from('chat_config').update({ 
+        active_room_id: room.id, 
+        is_chat_open: true 
+      }).eq('id', 1);
+      setRoomId(room.id);
+      setChatOpen(true);
+      setMessages([]);
+    }
+  }
+
+  async function closeChat() {
+    await supabase.from('chat_config').update({ is_chat_open: false }).eq('id', 1);
+    if (roomId) {
+      await supabase.from('chat_rooms').update({ 
+        is_closed: true,
+        closed_at: new Date().toISOString()
+      }).eq('id', roomId);
+    }
+    setChatOpen(false);
+  }
+
+  async function toggleChat() {
+    if (chatOpen) {
+      closeChat();
+    } else {
+      openChat();
+    }
+  }
+
+  async function toggleAutoMode() {
+    const newMode = !autoMode;
+    setAutoMode(newMode);
+    await supabase.from('chat_config').update({ auto_mode: newMode }).eq('id', 1);
+  }
+
+  async function deleteMessage(id: string) {
     await supabase.from('chat_messages').delete().eq('id', id);
     setMessages(prev => prev.filter(m => m.id !== id));
   }
 
-  async function pinMessage(text: string) {
-    setPinnedMessage(text);
-    await supabase.from('chat_config').update({ pinned_message: text }).eq('id', 1);
+  async function pinMessage(msg: any) {
+    // Unpin all first
+    await supabase.from('chat_messages').update({ is_pinned: false }).eq('room_id', roomId);
+    // Pin this one
+    await supabase.from('chat_messages').update({ is_pinned: true }).eq('id', msg.id);
+    setPinnedMessage(msg.message);
+    setMessages(prev => prev.map(m => ({ ...m, is_pinned: m.id === msg.id })));
+  }
+
+  async function clearPin() {
+    if (roomId) {
+      await supabase.from('chat_messages').update({ is_pinned: false }).eq('room_id', roomId);
+    }
+    setPinnedMessage('');
+    setMessages(prev => prev.map(m => ({ ...m, is_pinned: false })));
+  }
+
+  async function sendReply() {
+    if (!replyText.trim() || !roomId) return;
+    
+    const { error } = await supabase.from('chat_messages').insert({
+      room_id: roomId,
+      nickname_snapshot: '📻 REDIE 969',
+      role_snapshot: 'admin',
+      message: replyText,
+      is_pinned: false,
+      is_hidden: false
+    });
+    
+    if (!error) {
+      setReplyText('');
+    }
+  }
+
+  async function clearAllMessages() {
+    if (!confirm('Διαγραφή όλων των μηνυμάτων;')) return;
+    if (roomId) {
+      await supabase.from('chat_messages').delete().eq('room_id', roomId);
+      setMessages([]);
+      setPinnedMessage('');
+    }
   }
 
   function formatTime(date: string) {
     return new Date(date).toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' });
   }
+
+  const daysGreek = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο', 'Κυριακή'];
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f0f2f5', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
@@ -95,6 +204,10 @@ export default function StudioChatPage() {
             <span style={{ fontSize: 18 }}>📅</span>
             <span style={{ fontSize: 14, fontWeight: 500 }}>Schedule</span>
           </Link>
+          <Link href="/producers" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}>
+            <span style={{ fontSize: 18 }}>🎤</span>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>Παραγωγοί</span>
+          </Link>
           <Link href="/studio" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', background: 'rgba(229, 57, 53, 0.15)', color: '#e53935', borderRadius: 12, textDecoration: 'none', marginBottom: 6, border: '1px solid rgba(229, 57, 53, 0.2)' }}>
             <span style={{ fontSize: 18 }}>💬</span>
             <span style={{ fontSize: 14, fontWeight: 600 }}>Live Chat</span>
@@ -106,6 +219,10 @@ export default function StudioChatPage() {
           <Link href="/content" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}>
             <span style={{ fontSize: 18 }}>📱</span>
             <span style={{ fontSize: 14, fontWeight: 500 }}>App Content</span>
+          </Link>
+          <Link href="/splash" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}>
+            <span style={{ fontSize: 18 }}>🚀</span>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>Splash Screen</span>
           </Link>
         </nav>
 
@@ -124,9 +241,29 @@ export default function StudioChatPage() {
               {chatOpen ? '🟢 OPEN' : '⚫ CLOSED'}
             </span>
           </div>
-          <button onClick={toggleChat} style={{ padding: '12px 24px', background: chatOpen ? '#fef2f2' : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: chatOpen ? '#dc2626' : 'white', border: chatOpen ? '1px solid #fecaca' : 'none', borderRadius: 12, fontWeight: 600, fontSize: 14, cursor: 'pointer', boxShadow: chatOpen ? 'none' : '0 4px 15px rgba(34, 197, 94, 0.4)' }}>
-            {chatOpen ? '🔴 Close Chat' : '🟢 Open Chat'}
-          </button>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: '#f3f4f6', borderRadius: 10 }}>
+              <span style={{ fontSize: 13, color: '#6b7280' }}>Auto</span>
+              <button 
+                onClick={toggleAutoMode}
+                style={{ 
+                  width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                  background: autoMode ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : '#d1d5db',
+                  position: 'relative', transition: 'background 0.2s'
+                }}
+              >
+                <div style={{
+                  width: 18, height: 18, background: 'white', borderRadius: '50%',
+                  position: 'absolute', top: 3, left: autoMode ? 23 : 3,
+                  transition: 'left 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }} />
+              </button>
+            </div>
+            
+            <button onClick={toggleChat} style={{ padding: '12px 24px', background: chatOpen ? '#fef2f2' : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: chatOpen ? '#dc2626' : 'white', border: chatOpen ? '1px solid #fecaca' : 'none', borderRadius: 12, fontWeight: 600, fontSize: 14, cursor: 'pointer', boxShadow: chatOpen ? 'none' : '0 4px 15px rgba(34, 197, 94, 0.4)' }}>
+              {chatOpen ? '🔴 Close Chat' : '🟢 Open Chat'}
+            </button>
+          </div>
         </header>
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -138,7 +275,7 @@ export default function StudioChatPage() {
               <div style={{ padding: '12px 24px', background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', borderBottom: '1px solid #fcd34d', display: 'flex', alignItems: 'center', gap: 12 }}>
                 <span>📌</span>
                 <p style={{ margin: 0, flex: 1, fontWeight: 500, color: '#92400e' }}>{pinnedMessage}</p>
-                <button onClick={() => setPinnedMessage('')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#92400e' }}>×</button>
+                <button onClick={clearPin} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#92400e' }}>×</button>
               </div>
             )}
 
@@ -153,6 +290,11 @@ export default function StudioChatPage() {
                   <span style={{ fontSize: 60 }}>💬</span>
                   <p style={{ color: '#6b7280', fontSize: 18, marginTop: 16 }}>Το chat είναι κλειστό</p>
                   <p style={{ color: '#9ca3af', fontSize: 14 }}>Πάτα "Open Chat" για να ξεκινήσεις νέα συνομιλία</p>
+                  {autoMode && nextShow && (
+                    <p style={{ color: '#e53935', fontSize: 13, marginTop: 12 }}>
+                      ⏰ Θα ανοίξει αυτόματα 15' πριν: {nextShow.title}
+                    </p>
+                  )}
                 </div>
               ) : messages.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: 60 }}>
@@ -162,20 +304,34 @@ export default function StudioChatPage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {messages.map(msg => (
-                    <div key={msg.id} style={{ display: 'flex', gap: 12, padding: 16, background: 'white', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', border: '1px solid #f3f4f6' }}>
-                      <div style={{ width: 44, height: 44, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 600, fontSize: 14, flexShrink: 0 }}>
-                        {(msg.user_name || 'U').charAt(0).toUpperCase()}
+                  {messages.filter(m => !m.is_hidden).map(msg => (
+                    <div key={msg.id} style={{ 
+                      display: 'flex', gap: 12, padding: 16, 
+                      background: msg.role_snapshot === 'admin' ? 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)' : 'white', 
+                      borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', 
+                      border: msg.role_snapshot === 'admin' ? '2px solid #e53935' : msg.is_pinned ? '2px solid #f59e0b' : '1px solid #f3f4f6' 
+                    }}>
+                      <div style={{ 
+                        width: 44, height: 44, 
+                        background: msg.role_snapshot === 'admin' ? 'linear-gradient(135deg, #e53935 0%, #c62828 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+                        borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                        color: 'white', fontWeight: 600, fontSize: msg.role_snapshot === 'admin' ? 10 : 14, flexShrink: 0 
+                      }}>
+                        {msg.role_snapshot === 'admin' ? '📻' : (msg.nickname_snapshot || 'U').charAt(0).toUpperCase()}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontWeight: 700, color: '#1f2937', fontSize: 14 }}>{msg.user_name || 'Anonymous'}</span>
+                          <span style={{ fontWeight: 700, color: msg.role_snapshot === 'admin' ? '#e53935' : '#1f2937', fontSize: 14 }}>
+                            {msg.nickname_snapshot || 'Anonymous'}
+                          </span>
+                          {msg.role_snapshot === 'admin' && <span style={{ background: '#e53935', color: 'white', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600 }}>ADMIN</span>}
+                          {msg.is_pinned && <span style={{ background: '#f59e0b', color: 'white', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600 }}>📌 PINNED</span>}
                           <span style={{ color: '#9ca3af', fontSize: 12 }}>{formatTime(msg.created_at)}</span>
                         </div>
                         <p style={{ margin: 0, color: '#374151', fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word' }}>{msg.message}</p>
                       </div>
                       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                        <button onClick={() => pinMessage(msg.message)} style={{ width: 32, height: 32, background: '#f3f4f6', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14 }} title="Pin">📌</button>
+                        <button onClick={() => pinMessage(msg)} style={{ width: 32, height: 32, background: msg.is_pinned ? '#fef3c7' : '#f3f4f6', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14 }} title="Pin">📌</button>
                         <button onClick={() => deleteMessage(msg.id)} style={{ width: 32, height: 32, background: '#fef2f2', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, color: '#dc2626' }} title="Delete">🗑</button>
                       </div>
                     </div>
@@ -184,10 +340,30 @@ export default function StudioChatPage() {
                 </div>
               )}
             </div>
+
+            {/* Admin Reply Box */}
+            {chatOpen && (
+              <div style={{ padding: 16, background: 'white', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 12 }}>
+                <input
+                  type="text"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && sendReply()}
+                  placeholder="Απάντησε ως REDIE 969..."
+                  style={{ flex: 1, padding: '12px 16px', border: '2px solid #e5e7eb', borderRadius: 12, fontSize: 14, outline: 'none' }}
+                />
+                <button 
+                  onClick={sendReply}
+                  style={{ padding: '12px 24px', background: 'linear-gradient(135deg, #e53935 0%, #c62828 100%)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
+                >
+                  📤 Αποστολή
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Stats Sidebar */}
-          <div style={{ width: 280, background: 'white', borderLeft: '1px solid #e5e7eb', padding: 24, overflowY: 'auto' }}>
+          <div style={{ width: 300, background: 'white', borderLeft: '1px solid #e5e7eb', padding: 24, overflowY: 'auto' }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1f2937', marginBottom: 20 }}>📊 Στατιστικά Chat</h3>
             
             <div style={{ background: '#f9fafb', borderRadius: 16, padding: 20, marginBottom: 16 }}>
@@ -203,11 +379,46 @@ export default function StudioChatPage() {
               </div>
             </div>
 
+            <div style={{ background: '#f9fafb', borderRadius: 16, padding: 20, marginBottom: 16 }}>
+              <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 8 }}>Auto Mode</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 12, height: 12, borderRadius: '50%', background: autoMode ? '#22c55e' : '#d1d5db' }}></div>
+                <p style={{ fontSize: 16, fontWeight: 600, color: '#1f2937', margin: 0 }}>{autoMode ? 'Ενεργό' : 'Ανενεργό'}</p>
+              </div>
+            </div>
+
+            {nextShow && (
+              <div style={{ background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)', borderRadius: 16, padding: 20, marginBottom: 16, border: '1px solid #bfdbfe' }}>
+                <p style={{ color: '#1e40af', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>📻 Επόμενη Εκπομπή</p>
+                <p style={{ fontSize: 15, fontWeight: 700, color: '#1f2937', margin: '0 0 4px 0' }}>{nextShow.title}</p>
+                <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+                  {daysGreek[nextShow.day_of_week]} {nextShow.start_time?.slice(0,5)} - {nextShow.end_time?.slice(0,5)}
+                </p>
+                <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0 0' }}>με {nextShow.producer_name}</p>
+                {autoMode && (
+                  <p style={{ fontSize: 11, color: '#e53935', margin: '8px 0 0 0' }}>
+                    ⏰ Chat θα ανοίξει 15' πριν
+                  </p>
+                )}
+              </div>
+            )}
+
             <div style={{ background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)', borderRadius: 16, padding: 20 }}>
-              <p style={{ color: '#991b1b', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>⚠️ Quick Actions</p>
-              <button onClick={() => { if(confirm('Διαγραφή όλων;')) setMessages([]); }} style={{ width: '100%', padding: '10px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <p style={{ color: '#991b1b', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>⚠️ Quick Actions</p>
+              <button 
+                onClick={clearAllMessages} 
+                style={{ width: '100%', padding: '10px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 8 }}
+              >
                 🗑 Διαγραφή Όλων
               </button>
+              {pinnedMessage && (
+                <button 
+                  onClick={clearPin} 
+                  style={{ width: '100%', padding: '10px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  📌 Αφαίρεση Pin
+                </button>
+              )}
             </div>
           </div>
         </div>

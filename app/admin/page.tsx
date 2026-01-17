@@ -8,10 +8,10 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingShow, setEditingShow] = useState<any>(null);
-  const [form, setForm] = useState({ title: '', producer_name: '', day_of_week: 'Monday', start_time: '09:00', end_time: '10:00' });
+  const [form, setForm] = useState({ title: '', producer_name: '', day_of_week: 0, start_time: '09:00', end_time: '10:00' });
 
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const daysGreek: Record<string, string> = { Monday: 'Δευτέρα', Tuesday: 'Τρίτη', Wednesday: 'Τετάρτη', Thursday: 'Πέμπτη', Friday: 'Παρασκευή', Saturday: 'Σάββατο', Sunday: 'Κυριακή' };
+  // Days with index matching the database (0 = Monday, 6 = Sunday)
+  const daysGreek = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο', 'Κυριακή'];
 
   useEffect(() => { loadShows(); }, []);
 
@@ -29,7 +29,7 @@ export default function SchedulePage() {
     }
     setShowModal(false);
     setEditingShow(null);
-    setForm({ title: '', producer_name: '', day_of_week: 'Monday', start_time: '09:00', end_time: '10:00' });
+    setForm({ title: '', producer_name: '', day_of_week: 0, start_time: '09:00', end_time: '10:00' });
     loadShows();
   }
 
@@ -52,17 +52,22 @@ export default function SchedulePage() {
 
   function openEdit(show: any) {
     setEditingShow(show);
-    setForm({ title: show.title, producer_name: show.producer_name || '', day_of_week: show.day_of_week, start_time: show.start_time, end_time: show.end_time });
+    setForm({ title: show.title, producer_name: show.producer_name || '', day_of_week: show.day_of_week, start_time: show.start_time?.slice(0,5) || '09:00', end_time: show.end_time?.slice(0,5) || '10:00' });
     setShowModal(true);
   }
 
   function openNew() {
     setEditingShow(null);
-    setForm({ title: '', producer_name: '', day_of_week: 'Monday', start_time: '09:00', end_time: '10:00' });
+    setForm({ title: '', producer_name: '', day_of_week: 0, start_time: '09:00', end_time: '10:00' });
     setShowModal(true);
   }
 
-  const groupedShows = days.map(day => ({ day, shows: shows.filter(s => s.day_of_week === day) }));
+  // Group shows by day (0-6)
+  const groupedShows = daysGreek.map((dayName, index) => ({ 
+    dayIndex: index, 
+    dayName, 
+    shows: shows.filter(s => s.day_of_week === index) 
+  }));
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f0f2f5', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
@@ -90,6 +95,10 @@ export default function SchedulePage() {
             <span style={{ fontSize: 18 }}>📅</span>
             <span style={{ fontSize: 14, fontWeight: 600 }}>Schedule</span>
           </Link>
+          <Link href="/producers" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}>
+            <span style={{ fontSize: 18 }}>🎤</span>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>Παραγωγοί</span>
+          </Link>
           <Link href="/studio" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}>
             <span style={{ fontSize: 18 }}>💬</span>
             <span style={{ fontSize: 14, fontWeight: 500 }}>Live Chat</span>
@@ -101,6 +110,10 @@ export default function SchedulePage() {
           <Link href="/content" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}>
             <span style={{ fontSize: 18 }}>📱</span>
             <span style={{ fontSize: 14, fontWeight: 500 }}>App Content</span>
+          </Link>
+          <Link href="/splash" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}>
+            <span style={{ fontSize: 18 }}>🚀</span>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>Splash Screen</span>
           </Link>
         </nav>
 
@@ -128,13 +141,13 @@ export default function SchedulePage() {
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 24 }}>
-              {groupedShows.map(({ day, shows: dayShows }) => (
-                <div key={day} style={{ background: 'white', borderRadius: 20, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #f3f4f6' }}>
+              {groupedShows.map(({ dayIndex, dayName, shows: dayShows }) => (
+                <div key={dayIndex} style={{ background: 'white', borderRadius: 20, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #f3f4f6' }}>
                   <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1f2937', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ width: 36, height: 36, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 14 }}>
-                      {daysGreek[day]?.charAt(0)}
+                      {dayName.charAt(0)}
                     </span>
-                    {daysGreek[day]}
+                    {dayName}
                   </h3>
                   
                   {dayShows.length === 0 ? (
@@ -151,7 +164,7 @@ export default function SchedulePage() {
                             <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>{show.producer_name || 'REDIE 969'}</p>
                           </div>
                           <div style={{ textAlign: 'right', marginRight: 16 }}>
-                            <p style={{ fontWeight: 600, color: '#1f2937', margin: 0, fontSize: 14 }}>{show.start_time} - {show.end_time}</p>
+                            <p style={{ fontWeight: 600, color: '#1f2937', margin: 0, fontSize: 14 }}>{show.start_time?.slice(0,5)} - {show.end_time?.slice(0,5)}</p>
                             {show.is_live && <span style={{ background: '#e53935', color: 'white', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>🔴 LIVE</span>}
                           </div>
                           <div style={{ display: 'flex', gap: 8 }}>
@@ -189,8 +202,8 @@ export default function SchedulePage() {
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Ημέρα</label>
-                <select value={form.day_of_week} onChange={e => setForm({...form, day_of_week: e.target.value})} style={{ width: '100%', padding: '12px 16px', border: '2px solid #e5e7eb', borderRadius: 12, fontSize: 14, outline: 'none', background: 'white' }}>
-                  {days.map(d => <option key={d} value={d}>{daysGreek[d]}</option>)}
+                <select value={form.day_of_week} onChange={e => setForm({...form, day_of_week: parseInt(e.target.value)})} style={{ width: '100%', padding: '12px 16px', border: '2px solid #e5e7eb', borderRadius: 12, fontSize: 14, outline: 'none', background: 'white' }}>
+                  {daysGreek.map((day, index) => <option key={index} value={index}>{day}</option>)}
                 </select>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
