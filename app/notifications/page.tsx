@@ -9,19 +9,12 @@ const supabase = createClient(
 );
 
 export default function NotificationsPage() {
-  const [form, setForm] = useState({ title: '', body: '', type: 'general' });
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState('');
+  const [result, setResult] = useState<{success: boolean; message: string} | null>(null);
   const [history, setHistory] = useState<any[]>([]);
-  const [stats, setStats] = useState({ total: 0, success: 0, failed: 0 });
-
-  const notificationTypes = [
-    { id: 'general', label: 'Γενικό', icon: '📢', color: '#3b82f6' },
-    { id: 'show', label: 'Εκπομπή', icon: '🎙️', color: '#e53935' },
-    { id: 'promo', label: 'Προσφορά', icon: '🎁', color: '#f59e0b' },
-    { id: 'news', label: 'Νέα', icon: '📰', color: '#22c55e' },
-  ];
+  const [loadingHistory, setLoadingHistory] = useState(true);
 
   useEffect(() => {
     loadHistory();
@@ -30,110 +23,87 @@ export default function NotificationsPage() {
   async function loadHistory() {
     try {
       const { data } = await supabase
-        .from('notification_history')
+        .from('app_notifications')
         .select('*')
-        .order('sent_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(20);
-      if (data) setHistory(data);
-    } catch (e) {
-      // Table might not exist yet
-    }
+      setHistory(data || []);
+    } catch (e) { console.log(e); }
+    setLoadingHistory(false);
   }
 
   async function sendNotification() {
-    if (!form.title || !form.body) return alert('Συμπλήρωσε τίτλο και μήνυμα!');
-    
+    if (!title.trim() || !body.trim()) {
+      setResult({ success: false, message: 'Συμπλήρωσε τίτλο και μήνυμα!' });
+      return;
+    }
+
     setSending(true);
-    setError('');
-    
+    setResult(null);
+
     try {
-      // Get all FCM tokens
+      // 1. Save to app_notifications table
+      await supabase.from('app_notifications').insert({
+        title,
+        body,
+        type: 'general'
+      });
+
+      // 2. Get all FCM tokens
       const { data: tokens, error: tokensError } = await supabase
         .from('fcm_tokens')
         .select('token');
-      
+
       if (tokensError) throw tokensError;
+
       if (!tokens || tokens.length === 0) {
-        setError('Δεν υπάρχουν συσκευές εγγεγραμμένες!');
+        setResult({ success: false, message: 'Δεν υπάρχουν εγγεγραμμένες συσκευές!' });
         setSending(false);
+        loadHistory();
         return;
       }
 
+      // 3. Send to all tokens
       let successCount = 0;
       let failCount = 0;
 
-      // Send to each token
-      for (const { token } of tokens) {
+      for (const t of tokens) {
         try {
-          const response = await fetch('/api/send-notification', {
+          const res = await fetch('/api/send-notification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: form.title,
-              body: form.body,
-              token: token
-            })
+            body: JSON.stringify({ token: t.token, title, body })
           });
-
-          const result = await response.json();
           
-          if (response.ok && !result.error) {
+          if (res.ok) {
             successCount++;
           } else {
             failCount++;
-            console.error('Failed for token:', token, result);
           }
-        } catch (e) {
+        } catch {
           failCount++;
-          console.error('Error sending to token:', token, e);
         }
       }
 
-      // Save to history
-      try {
-        await supabase.from('notification_history').insert({
-          title: form.title,
-          body: form.body,
-          type: form.type,
-          sent_at: new Date().toISOString(),
-          success_count: successCount,
-          fail_count: failCount
-        });
-      } catch (e) {
-        // History table might not exist
-      }
+      setResult({
+        success: true,
+        message: `✅ Στάλθηκε σε ${successCount} συσκευές${failCount > 0 ? ` (${failCount} απέτυχαν)` : ''}`
+      });
 
-      setStats({ total: tokens.length, success: successCount, failed: failCount });
-      
-      if (successCount > 0) {
-        setSent(true);
-        setHistory(prev => [{ 
-          id: Date.now(), 
-          title: form.title,
-          body: form.body,
-          type: form.type,
-          sent_at: new Date().toISOString(),
-          success_count: successCount,
-          fail_count: failCount
-        }, ...prev]);
-        setForm({ title: '', body: '', type: 'general' });
-        setTimeout(() => setSent(false), 5000);
-      } else {
-        setError(`Αποτυχία αποστολής σε όλες τις συσκευές (${failCount})`);
-      }
-      
-    } catch (e: any) {
-      setError(e.message || 'Σφάλμα αποστολής');
+      setTitle('');
+      setBody('');
+      loadHistory();
+    } catch (error: any) {
+      setResult({ success: false, message: error.message || 'Σφάλμα αποστολής!' });
     }
-    
+
     setSending(false);
   }
 
-  function formatDate(date: string) {
-    return new Date(date).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  function formatTime(dateStr: string) {
+    const date = new Date(dateStr);
+    return date.toLocaleString('el-GR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   }
-
-  const selectedType = notificationTypes.find(t => t.id === form.type);
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f0f2f5', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
@@ -161,6 +131,10 @@ export default function NotificationsPage() {
             <span style={{ fontSize: 18 }}>📅</span>
             <span style={{ fontSize: 14, fontWeight: 500 }}>Schedule</span>
           </Link>
+          <Link href="/producers" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}>
+            <span style={{ fontSize: 18 }}>🎤</span>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>Παραγωγοί</span>
+          </Link>
           <Link href="/studio" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}>
             <span style={{ fontSize: 18 }}>💬</span>
             <span style={{ fontSize: 14, fontWeight: 500 }}>Live Chat</span>
@@ -172,6 +146,10 @@ export default function NotificationsPage() {
           <Link href="/content" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}>
             <span style={{ fontSize: 18 }}>📱</span>
             <span style={{ fontSize: 14, fontWeight: 500 }}>App Content</span>
+          </Link>
+          <Link href="/splash" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}>
+            <span style={{ fontSize: 18 }}>🚀</span>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>Splash Screen</span>
           </Link>
         </nav>
 
@@ -189,169 +167,100 @@ export default function NotificationsPage() {
           </div>
         </header>
 
-        <div style={{ padding: 28 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
+        <div style={{ padding: 28, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
+          
+          {/* Send Form */}
+          <div style={{ background: 'white', borderRadius: 20, padding: 28, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', border: '1px solid #f3f4f6' }}>
+            <h2 style={{ margin: '0 0 24px', fontSize: 18, fontWeight: 700, color: '#1f2937' }}>📤 Νέα Ειδοποίηση</h2>
             
-            {/* Send Notification Form */}
-            <div style={{ background: 'white', borderRadius: 24, padding: 32, boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #f3f4f6' }}>
-              <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1f2937', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span>📤</span> Αποστολή Notification
-              </h2>
-
-              {sent && (
-                <div style={{ padding: 16, background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)', borderRadius: 14, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span>✅</span>
-                  <div>
-                    <p style={{ margin: 0, color: '#166534', fontWeight: 600 }}>Επιτυχής αποστολή!</p>
-                    <p style={{ margin: '4px 0 0 0', color: '#166534', fontSize: 13 }}>
-                      {stats.success}/{stats.total} συσκευές
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {error && (
-                <div style={{ padding: 16, background: 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)', borderRadius: 14, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span>❌</span>
-                  <p style={{ margin: 0, color: '#991b1b', fontWeight: 600 }}>{error}</p>
-                </div>
-              )}
-
-              {/* Type Selection */}
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 10 }}>Τύπος</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                  {notificationTypes.map(type => (
-                    <button
-                      key={type.id}
-                      onClick={() => setForm({...form, type: type.id})}
-                      style={{
-                        padding: '14px 10px',
-                        background: form.type === type.id ? `${type.color}15` : '#f9fafb',
-                        border: form.type === type.id ? `2px solid ${type.color}` : '2px solid transparent',
-                        borderRadius: 14,
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      <span style={{ fontSize: 24, display: 'block', marginBottom: 6 }}>{type.icon}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: form.type === type.id ? type.color : '#6b7280' }}>{type.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Title */}
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>Τίτλος</label>
-                <input
-                  type="text"
-                  value={form.title}
-                  onChange={e => setForm({...form, title: e.target.value})}
-                  placeholder="π.χ. Νέα Εκπομπή Τώρα!"
-                  style={{ width: '100%', padding: '14px 18px', border: '2px solid #e5e7eb', borderRadius: 14, fontSize: 15, outline: 'none', transition: 'border-color 0.2s', boxSizing: 'border-box' }}
-                />
-              </div>
-
-              {/* Body */}
-              <div style={{ marginBottom: 24 }}>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>Μήνυμα</label>
-                <textarea
-                  value={form.body}
-                  onChange={e => setForm({...form, body: e.target.value})}
-                  placeholder="Γράψε το μήνυμα που θα λάβουν οι χρήστες..."
-                  rows={4}
-                  style={{ width: '100%', padding: '14px 18px', border: '2px solid #e5e7eb', borderRadius: 14, fontSize: 15, outline: 'none', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-                />
-              </div>
-
-              {/* Preview */}
-              <div style={{ background: '#1f2937', borderRadius: 20, padding: 20, marginBottom: 24 }}>
-                <p style={{ color: '#9ca3af', fontSize: 11, marginBottom: 12, fontWeight: 500 }}>📱 PREVIEW</p>
-                <div style={{ background: 'white', borderRadius: 14, padding: 14, display: 'flex', gap: 12 }}>
-                  <div style={{ width: 44, height: 44, background: `linear-gradient(135deg, ${selectedType?.color || '#3b82f6'} 0%, ${selectedType?.color || '#3b82f6'}dd 100%)`, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: 20 }}>{selectedType?.icon}</span>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontWeight: 700, color: '#1f2937', margin: '0 0 4px 0', fontSize: 14 }}>{form.title || 'Τίτλος notification'}</p>
-                    <p style={{ color: '#6b7280', margin: 0, fontSize: 13, lineHeight: 1.4 }}>{form.body || 'Το μήνυμα θα εμφανιστεί εδώ...'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Send Button */}
-              <button
-                onClick={sendNotification}
-                disabled={sending}
-                style={{
-                  width: '100%',
-                  padding: '16px',
-                  background: sending ? '#9ca3af' : 'linear-gradient(135deg, #e53935 0%, #c62828 100%)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 14,
-                  fontSize: 16,
-                  fontWeight: 700,
-                  cursor: sending ? 'not-allowed' : 'pointer',
-                  boxShadow: sending ? 'none' : '0 4px 20px rgba(229, 57, 53, 0.4)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 10
-                }}
-              >
-                {sending ? (
-                  <>
-                    <div style={{ width: 20, height: 20, border: '3px solid white', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-                    Αποστολή...
-                  </>
-                ) : (
-                  <>🚀 Αποστολή σε Όλους</>
-                )}
-              </button>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 8 }}>Τίτλος</label>
+              <input
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="π.χ. 🎉 Νέα Εκπομπή!"
+                style={{ width: '100%', padding: '14px 18px', border: '2px solid #e5e7eb', borderRadius: 12, fontSize: 15, outline: 'none', boxSizing: 'border-box' }}
+              />
             </div>
 
-            {/* History */}
-            <div style={{ background: 'white', borderRadius: 24, padding: 32, boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #f3f4f6' }}>
-              <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1f2937', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span>📋</span> Ιστορικό
-              </h2>
-
-              {history.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 40 }}>
-                  <span style={{ fontSize: 50 }}>📭</span>
-                  <p style={{ color: '#6b7280', marginTop: 16 }}>Δεν έχουν σταλεί notifications</p>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 500, overflowY: 'auto' }}>
-                  {history.map(item => {
-                    const type = notificationTypes.find(t => t.id === item.type);
-                    return (
-                      <div key={item.id} style={{ padding: 16, background: '#f9fafb', borderRadius: 16, border: '1px solid #f3f4f6' }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                          <div style={{ width: 40, height: 40, background: `${type?.color || '#3b82f6'}20`, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <span style={{ fontSize: 18 }}>{type?.icon || '📢'}</span>
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                              <p style={{ fontWeight: 700, color: '#1f2937', margin: 0, fontSize: 14 }}>{item.title}</p>
-                              <span style={{ color: '#9ca3af', fontSize: 11 }}>{formatDate(item.sent_at)}</span>
-                            </div>
-                            <p style={{ color: '#6b7280', margin: '0 0 6px 0', fontSize: 13 }}>{item.body}</p>
-                            {item.success_count !== undefined && (
-                              <p style={{ color: '#22c55e', margin: 0, fontSize: 11, fontWeight: 600 }}>
-                                ✓ {item.success_count} επιτυχείς {item.fail_count > 0 && <span style={{ color: '#ef4444' }}>• {item.fail_count} αποτυχίες</span>}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 8 }}>Μήνυμα</label>
+              <textarea
+                value={body}
+                onChange={e => setBody(e.target.value)}
+                placeholder="Γράψε το μήνυμά σου..."
+                rows={4}
+                style={{ width: '100%', padding: '14px 18px', border: '2px solid #e5e7eb', borderRadius: 12, fontSize: 15, outline: 'none', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+              />
             </div>
+
+            {result && (
+              <div style={{
+                padding: '12px 16px',
+                background: result.success ? '#dcfce7' : '#fee2e2',
+                color: result.success ? '#166534' : '#dc2626',
+                borderRadius: 10,
+                marginBottom: 20,
+                fontSize: 14,
+                fontWeight: 500
+              }}>
+                {result.message}
+              </div>
+            )}
+
+            <button
+              onClick={sendNotification}
+              disabled={sending}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: sending ? '#9ca3af' : 'linear-gradient(135deg, #e53935 0%, #c62828 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 12,
+                fontSize: 16,
+                fontWeight: 600,
+                cursor: sending ? 'not-allowed' : 'pointer',
+                boxShadow: sending ? 'none' : '0 4px 15px rgba(229, 57, 53, 0.3)',
+              }}
+            >
+              {sending ? '⏳ Αποστολή...' : '🚀 Αποστολή σε Όλους'}
+            </button>
+          </div>
+
+          {/* History */}
+          <div style={{ background: 'white', borderRadius: 20, padding: 28, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', border: '1px solid #f3f4f6' }}>
+            <h2 style={{ margin: '0 0 24px', fontSize: 18, fontWeight: 700, color: '#1f2937' }}>📋 Ιστορικό</h2>
+            
+            {loadingHistory ? (
+              <div style={{ textAlign: 'center', padding: 40 }}>
+                <div style={{ width: 32, height: 32, border: '3px solid #e5e7eb', borderTopColor: '#e53935', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto' }}></div>
+              </div>
+            ) : history.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af' }}>
+                <span style={{ fontSize: 48 }}>📭</span>
+                <p style={{ marginTop: 12 }}>Δεν υπάρχουν ειδοποιήσεις</p>
+              </div>
+            ) : (
+              <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                {history.map((item, i) => (
+                  <div key={i} style={{
+                    padding: '14px 16px',
+                    background: '#f9fafb',
+                    borderRadius: 12,
+                    marginBottom: 10,
+                    borderLeft: `4px solid ${item.type === 'chat' ? '#22c55e' : '#e53935'}`
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                      <span style={{ fontWeight: 600, fontSize: 14, color: '#1f2937' }}>{item.title}</span>
+                      <span style={{ fontSize: 11, color: '#9ca3af' }}>{formatTime(item.created_at)}</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>{item.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </main>

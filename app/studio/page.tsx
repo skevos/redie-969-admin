@@ -96,6 +96,27 @@ export default function StudioChatPage() {
       setRoomId(room.id);
       setChatOpen(true);
       setMessages([]);
+      
+      // Save notification to app_notifications table
+      await supabase.from('app_notifications').insert({
+        title: '💬 Το Chat Άνοιξε!',
+        body: 'Έλα να μιλήσεις μαζί μας live!',
+        type: 'chat'
+      });
+      
+      // Send push notification to all users
+      try {
+        const { data: tokens } = await supabase.from('fcm_tokens').select('token');
+        if (tokens) {
+          for (const t of tokens) {
+            fetch('/api/send-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: t.token, title: '💬 Το Chat Άνοιξε!', body: 'Έλα να μιλήσεις μαζί μας live!' })
+            }).catch(() => {});
+          }
+        }
+      } catch (e) { console.log(e); }
     }
   }
 
@@ -108,6 +129,13 @@ export default function StudioChatPage() {
       }).eq('id', roomId);
     }
     setChatOpen(false);
+    
+    // Save notification to app_notifications table
+    await supabase.from('app_notifications').insert({
+      title: '📴 Το Chat Έκλεισε',
+      body: 'Ευχαριστούμε για τη συμμετοχή σας! Τα λέμε σύντομα.',
+      type: 'chat'
+    });
   }
 
   async function toggleChat() {
