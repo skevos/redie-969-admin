@@ -8,9 +8,17 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+const NOTIFICATION_TYPES = [
+  { value: 'general', label: '📢 Γενική', emoji: '📢', color: '#e53935' },
+  { value: 'show', label: '🎙️ Εκπομπή', emoji: '🎙️', color: '#9333ea' },
+  { value: 'offer', label: '🎁 Προσφορά', emoji: '🎁', color: '#f97316' },
+  { value: 'news', label: '📰 Νέα', emoji: '📰', color: '#3b82f6' },
+];
+
 export default function NotificationsPage() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [type, setType] = useState('general');
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{success: boolean; message: string} | null>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -41,12 +49,17 @@ export default function NotificationsPage() {
     setSending(true);
     setResult(null);
 
+    // Get emoji for selected type
+    const typeConfig = NOTIFICATION_TYPES.find(t => t.value === type);
+    const emoji = typeConfig?.emoji || '📢';
+    const finalTitle = `${emoji} ${title}`;
+
     try {
       // 1. Save to app_notifications table
       await supabase.from('app_notifications').insert({
-        title,
+        title: finalTitle,
         body,
-        type: 'general'
+        type
       });
 
       // 2. Get all FCM tokens
@@ -72,7 +85,7 @@ export default function NotificationsPage() {
           const res = await fetch('/api/send-notification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: t.token, title, body })
+            body: JSON.stringify({ token: t.token, title: finalTitle, body })
           });
           
           if (res.ok) {
@@ -103,6 +116,12 @@ export default function NotificationsPage() {
   function formatTime(dateStr: string) {
     const date = new Date(dateStr);
     return date.toLocaleString('el-GR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function getTypeColor(itemType: string) {
+    if (itemType === 'chat') return '#22c55e';
+    const config = NOTIFICATION_TYPES.find(t => t.value === itemType);
+    return config?.color || '#e53935';
   }
 
   return (
@@ -173,15 +192,42 @@ export default function NotificationsPage() {
           <div style={{ background: 'white', borderRadius: 20, padding: 28, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', border: '1px solid #f3f4f6' }}>
             <h2 style={{ margin: '0 0 24px', fontSize: 18, fontWeight: 700, color: '#1f2937' }}>📤 Νέα Ειδοποίηση</h2>
             
+            {/* Type Selection */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 10 }}>Τύπος</label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {NOTIFICATION_TYPES.map(t => (
+                  <button
+                    key={t.value}
+                    onClick={() => setType(t.value)}
+                    style={{
+                      padding: '10px 16px',
+                      background: type === t.value ? t.color : '#f3f4f6',
+                      color: type === t.value ? 'white' : '#374151',
+                      border: 'none',
+                      borderRadius: 10,
+                      fontSize: 14,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 8 }}>Τίτλος</label>
               <input
                 type="text"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                placeholder="π.χ. 🎉 Νέα Εκπομπή!"
+                placeholder="π.χ. Νέα Εκπομπή!"
                 style={{ width: '100%', padding: '14px 18px', border: '2px solid #e5e7eb', borderRadius: 12, fontSize: 15, outline: 'none', boxSizing: 'border-box' }}
               />
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: '#9ca3af' }}>Το emoji θα προστεθεί αυτόματα</p>
             </div>
 
             <div style={{ marginBottom: 20 }}>
@@ -250,7 +296,7 @@ export default function NotificationsPage() {
                     background: '#f9fafb',
                     borderRadius: 12,
                     marginBottom: 10,
-                    borderLeft: `4px solid ${item.type === 'chat' ? '#22c55e' : '#e53935'}`
+                    borderLeft: `4px solid ${getTypeColor(item.type)}`
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                       <span style={{ fontWeight: 600, fontSize: 14, color: '#1f2937' }}>{item.title}</span>
