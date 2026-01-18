@@ -23,9 +23,11 @@ export default function NotificationsPage() {
   const [result, setResult] = useState<{success: boolean; message: string} | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [tokenCount, setTokenCount] = useState(0);
 
   useEffect(() => {
     loadHistory();
+    loadTokenCount();
   }, []);
 
   async function loadHistory() {
@@ -38,6 +40,11 @@ export default function NotificationsPage() {
       setHistory(data || []);
     } catch (e) { console.log(e); }
     setLoadingHistory(false);
+  }
+
+  async function loadTokenCount() {
+    const { count } = await supabase.from('fcm_tokens').select('*', { count: 'exact', head: true });
+    setTokenCount(count || 0);
   }
 
   async function sendNotification() {
@@ -71,32 +78,27 @@ export default function NotificationsPage() {
         return;
       }
 
-      // 3. Send to all tokens
-      let successCount = 0;
-      let failCount = 0;
-
-      for (const t of tokens) {
-        try {
-          const res = await fetch('/api/send-notification', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: t.token, title, body })
-          });
-          
-          if (res.ok) {
-            successCount++;
-          } else {
-            failCount++;
-          }
-        } catch {
-          failCount++;
-        }
-      }
-
-      setResult({
-        success: true,
-        message: `✅ Στάλθηκε σε ${successCount} συσκευές${failCount > 0 ? ` (${failCount} απέτυχαν)` : ''}`
+      // 3. Send batch request (all tokens at once)
+      const res = await fetch('/api/send-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          tokens: tokens.map(t => t.token), 
+          title, 
+          body 
+        })
       });
+      
+      const data = await res.json();
+
+      if (res.ok) {
+        setResult({
+          success: true,
+          message: `✅ Στάλθηκε σε ${data.sent} συσκευές${data.failed > 0 ? ` (${data.failed} απέτυχαν)` : ''}`
+        });
+      } else {
+        setResult({ success: false, message: data.error || 'Σφάλμα αποστολής!' });
+      }
 
       setTitle('');
       setBody('');
@@ -172,6 +174,10 @@ export default function NotificationsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 28 }}>🔔</span>
             <span style={{ fontSize: 22, fontWeight: 700, color: '#1f2937' }}>Push Notifications</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: '#f3f4f6', borderRadius: 10 }}>
+            <span style={{ fontSize: 16 }}>📱</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>{tokenCount} συσκευές</span>
           </div>
         </header>
 
