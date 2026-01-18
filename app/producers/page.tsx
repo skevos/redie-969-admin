@@ -16,6 +16,11 @@ interface Producer {
   created_at: string;
 }
 
+interface FavoriteCount {
+  producer_name: string;
+  favorites_count: number;
+}
+
 export default function ProducersPage() {
   const [producers, setProducers] = useState<Producer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,9 +29,11 @@ export default function ProducersPage() {
   const [form, setForm] = useState({ name: '', bio: '', photo_url: '' });
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [favoriteCounts, setFavoriteCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     loadProducers();
+    loadFavoriteCounts();
   }, []);
 
   async function loadProducers() {
@@ -37,6 +44,19 @@ export default function ProducersPage() {
       .order('name');
     if (data) setProducers(data);
     setLoading(false);
+  }
+
+  async function loadFavoriteCounts() {
+    const { data, error } = await supabase
+      .from('producer_favorites_count')
+      .select('*');
+    if (data) {
+      const counts: Record<string, number> = {};
+      data.forEach((item: FavoriteCount) => {
+        counts[item.producer_name] = item.favorites_count;
+      });
+      setFavoriteCounts(counts);
+    }
   }
 
   function openNew() {
@@ -121,6 +141,9 @@ export default function ProducersPage() {
     loadProducers();
   }
 
+  // Calculate total favorites
+  const totalFavorites = Object.values(favoriteCounts).reduce((a, b) => a + b, 0);
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f0f2f5', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       
@@ -177,31 +200,48 @@ export default function ProducersPage() {
             <span style={{ fontSize: 28 }}>🎤</span>
             <span style={{ fontSize: 22, fontWeight: 700, color: '#1f2937' }}>Παραγωγοί</span>
           </div>
-          <button
-            onClick={openNew}
-            style={{
-              padding: '10px 20px',
-              background: 'linear-gradient(135deg, #e53935 0%, #c62828 100%)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 10,
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <span>➕</span> Νέος Παραγωγός
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Total Favorites Badge */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 8, 
+              padding: '8px 16px', 
+              background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)', 
+              borderRadius: 12,
+              border: '1px solid #fecaca'
+            }}>
+              <span style={{ fontSize: 20 }}>❤️</span>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#dc2626' }}>{totalFavorites}</div>
+                <div style={{ fontSize: 10, color: '#ef4444', fontWeight: 500 }}>ΣΥΝΟΛΙΚΑ</div>
+              </div>
+            </div>
+            <button
+              onClick={openNew}
+              style={{
+                padding: '10px 20px',
+                background: 'linear-gradient(135deg, #e53935 0%, #c62828 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 10,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span>➕</span> Νέος Παραγωγός
+            </button>
+          </div>
         </header>
 
         <div style={{ padding: 28 }}>
           {loading ? (
             <div style={{ textAlign: 'center', padding: 60 }}>
-              <div style={{ width: 40, height: 40, border: '4px solid #e5e7eb', borderTopColor: '#e53935', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto' }}></div>
-              <p style={{ marginTop: 16, color: '#6b7280' }}>Φόρτωση...</p>
+              <div style={{ width: 48, height: 48, border: '3px solid #e5e7eb', borderTopColor: '#e53935', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto' }} />
             </div>
           ) : producers.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 60 }}>
@@ -210,8 +250,10 @@ export default function ProducersPage() {
               <p style={{ color: '#9ca3af' }}>Πάτα "Νέος Παραγωγός" για να προσθέσεις</p>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
-              {producers.map(producer => (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+              {producers.map(producer => {
+                const likes = favoriteCounts[producer.name] || 0;
+                return (
                 <div
                   key={producer.id}
                   style={{
@@ -220,8 +262,28 @@ export default function ProducersPage() {
                     padding: 20,
                     boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                     border: '1px solid #f3f4f6',
+                    position: 'relative',
                   }}
                 >
+                  {/* Favorites Badge */}
+                  {likes > 0 && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 12,
+                      right: 12,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+                      padding: '6px 12px',
+                      borderRadius: 20,
+                      border: '1px solid #fecaca',
+                    }}>
+                      <span style={{ color: '#dc2626', fontSize: 14 }}>❤️</span>
+                      <span style={{ color: '#dc2626', fontSize: 14, fontWeight: 700 }}>{likes}</span>
+                    </div>
+                  )}
+                  
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                     {producer.photo_url ? (
                       <img
@@ -277,7 +339,7 @@ export default function ProducersPage() {
                     </button>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           )}
         </div>
