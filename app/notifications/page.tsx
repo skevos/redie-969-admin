@@ -79,12 +79,22 @@ export default function NotificationsPage() {
       }
 
       // 3. Send batch request (all tokens at once)
+      const typeEmojis: Record<string, string> = {
+        'general': '📢',
+        'show': '🎙️',
+        'offer': '🎁',
+        'news': '📰',
+        'chat': '💬',
+      };
+      const emoji = typeEmojis[type] || '📢';
+      const titleWithEmoji = title.startsWith(emoji) ? title : `${emoji} ${title}`;
+      
       const res = await fetch('/api/send-notification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           tokens: tokens.map(t => t.token), 
-          title, 
+          title: titleWithEmoji, 
           body 
         })
       });
