@@ -12,6 +12,7 @@ export default function StudioChatPage() {
   const [pinnedMessage, setPinnedMessage] = useState<string>('');
   const [nextShow, setNextShow] = useState<any>(null);
   const [replyText, setReplyText] = useState('');
+  const [sendingNotification, setSendingNotification] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { 
@@ -80,6 +81,32 @@ export default function StudioChatPage() {
     }
   }
 
+  // Send push notification to all users (batch)
+  async function sendPushToAll(title: string, body: string) {
+    if (sendingNotification) return;
+    setSendingNotification(true);
+    
+    try {
+      const { data: tokens } = await supabase.from('fcm_tokens').select('token');
+      if (tokens && tokens.length > 0) {
+        // Send all tokens in one request
+        await fetch('/api/send-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            tokens: tokens.map(t => t.token), 
+            title, 
+            body 
+          })
+        });
+      }
+    } catch (e) { 
+      console.log('Push error:', e); 
+    } finally {
+      setSendingNotification(false);
+    }
+  }
+
   async function openChat() {
     const title = "Live Chat - " + new Date().toLocaleDateString('el-GR');
     const { data: room, error } = await supabase.from('chat_rooms').insert({ 
@@ -104,19 +131,8 @@ export default function StudioChatPage() {
         type: 'chat'
       });
       
-      // Send push notification to all users
-      try {
-        const { data: tokens } = await supabase.from('fcm_tokens').select('token');
-        if (tokens) {
-          for (const t of tokens) {
-            fetch('/api/send-notification', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ token: t.token, title: '💬 Το Chat Άνοιξε!', body: 'Έλα να μιλήσεις μαζί μας live!' })
-            }).catch(() => {});
-          }
-        }
-      } catch (e) { console.log(e); }
+      // Send push notification
+      await sendPushToAll('💬 Το Chat Άνοιξε!', 'Έλα να μιλήσεις μαζί μας live!');
     }
   }
 
@@ -136,6 +152,9 @@ export default function StudioChatPage() {
       body: 'Ευχαριστούμε για τη συμμετοχή σας! Τα λέμε σύντομα.',
       type: 'chat'
     });
+    
+    // Send push notification when chat closes
+    await sendPushToAll('📴 Το Chat Έκλεισε', 'Ευχαριστούμε για τη συμμετοχή σας! Τα λέμε σύντομα.');
   }
 
   async function toggleChat() {
@@ -167,41 +186,33 @@ export default function StudioChatPage() {
   }
 
   async function clearPin() {
-    if (roomId) {
-      await supabase.from('chat_messages').update({ is_pinned: false }).eq('room_id', roomId);
-    }
+    await supabase.from('chat_messages').update({ is_pinned: false }).eq('room_id', roomId);
     setPinnedMessage('');
     setMessages(prev => prev.map(m => ({ ...m, is_pinned: false })));
+  }
+
+  async function clearAllMessages() {
+    if (!confirm('Διαγραφή όλων των μηνυμάτων;')) return;
+    await supabase.from('chat_messages').delete().eq('room_id', roomId);
+    setMessages([]);
+    setPinnedMessage('');
   }
 
   async function sendReply() {
     if (!replyText.trim() || !roomId) return;
     
-    const { error } = await supabase.from('chat_messages').insert({
+    await supabase.from('chat_messages').insert({
       room_id: roomId,
-      nickname_snapshot: '📻 REDIE 969',
-      role_snapshot: 'admin',
       message: replyText,
-      is_pinned: false,
-      is_hidden: false
+      nickname_snapshot: 'REDIE 969',
+      role_snapshot: 'admin'
     });
     
-    if (!error) {
-      setReplyText('');
-    }
+    setReplyText('');
   }
 
-  async function clearAllMessages() {
-    if (!confirm('Διαγραφή όλων των μηνυμάτων;')) return;
-    if (roomId) {
-      await supabase.from('chat_messages').delete().eq('room_id', roomId);
-      setMessages([]);
-      setPinnedMessage('');
-    }
-  }
-
-  function formatTime(date: string) {
-    return new Date(date).toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' });
+  function formatTime(dateStr: string) {
+    return new Date(dateStr).toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' });
   }
 
   const daysGreek = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο', 'Κυριακή'];
@@ -248,10 +259,6 @@ export default function StudioChatPage() {
             <span style={{ fontSize: 18 }}>📱</span>
             <span style={{ fontSize: 14, fontWeight: 500 }}>App Content</span>
           </Link>
-          <Link href="/splash" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}>
-            <span style={{ fontSize: 18 }}>🚀</span>
-            <span style={{ fontSize: 14, fontWeight: 500 }}>Splash Screen</span>
-          </Link>
         </nav>
 
         <div style={{ padding: 20, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
@@ -264,32 +271,48 @@ export default function StudioChatPage() {
         <header style={{ background: 'white', borderBottom: '1px solid #e5e7eb', padding: '16px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 28 }}>💬</span>
-            <span style={{ fontSize: 22, fontWeight: 700, color: '#1f2937' }}>Studio Chat</span>
-            <span style={{ padding: '6px 12px', background: chatOpen ? '#dcfce7' : '#f3f4f6', color: chatOpen ? '#16a34a' : '#6b7280', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
-              {chatOpen ? '🟢 OPEN' : '⚫ CLOSED'}
-            </span>
+            <span style={{ fontSize: 22, fontWeight: 700, color: '#1f2937' }}>Live Chat Studio</span>
+            <div style={{ 
+              width: 12, height: 12, borderRadius: '50%', 
+              background: chatOpen ? '#22c55e' : '#d1d5db',
+              boxShadow: chatOpen ? '0 0 8px #22c55e' : 'none'
+            }}></div>
           </div>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: '#f3f4f6', borderRadius: 10 }}>
-              <span style={{ fontSize: 13, color: '#6b7280' }}>Auto</span>
-              <button 
-                onClick={toggleAutoMode}
-                style={{ 
-                  width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
-                  background: autoMode ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : '#d1d5db',
-                  position: 'relative', transition: 'background 0.2s'
-                }}
-              >
-                <div style={{
-                  width: 18, height: 18, background: 'white', borderRadius: '50%',
-                  position: 'absolute', top: 3, left: autoMode ? 23 : 3,
-                  transition: 'left 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                }} />
-              </button>
-            </div>
-            
-            <button onClick={toggleChat} style={{ padding: '12px 24px', background: chatOpen ? '#fef2f2' : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: chatOpen ? '#dc2626' : 'white', border: chatOpen ? '1px solid #fecaca' : 'none', borderRadius: 12, fontWeight: 600, fontSize: 14, cursor: 'pointer', boxShadow: chatOpen ? 'none' : '0 4px 15px rgba(34, 197, 94, 0.4)' }}>
-              {chatOpen ? '🔴 Close Chat' : '🟢 Open Chat'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              onClick={toggleAutoMode}
+              style={{
+                padding: '10px 16px',
+                background: autoMode ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : '#e5e7eb',
+                color: autoMode ? 'white' : '#6b7280',
+                border: 'none',
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              ⏰ Auto Mode {autoMode ? 'ON' : 'OFF'}
+            </button>
+            <button
+              onClick={toggleChat}
+              disabled={sendingNotification}
+              style={{
+                padding: '10px 20px',
+                background: chatOpen ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 10,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: sendingNotification ? 'wait' : 'pointer',
+                opacity: sendingNotification ? 0.7 : 1,
+              }}
+            >
+              {sendingNotification ? '⏳ Αποστολή...' : (chatOpen ? '🔴 Close Chat' : '🟢 Open Chat')}
             </button>
           </div>
         </header>
@@ -451,6 +474,8 @@ export default function StudioChatPage() {
           </div>
         </div>
       </main>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
