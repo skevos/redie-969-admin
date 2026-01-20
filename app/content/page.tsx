@@ -10,6 +10,8 @@ export default function ContentPage() {
   const [nowPlaying, setNowPlaying] = useState('REDIE 969 Live');
   const [announcement, setAnnouncement] = useState('');
   const [announcementActive, setAnnouncementActive] = useState(false);
+  const [announcementUrl, setAnnouncementUrl] = useState('');
+  const [announcementUrlActive, setAnnouncementUrlActive] = useState(false);
   const [socialLinks, setSocialLinks] = useState({
     facebook_url: '',
     instagram_url: '',
@@ -27,6 +29,8 @@ export default function ContentPage() {
         setNowPlaying(data.now_playing || 'REDIE 969 Live');
         setAnnouncement(data.announcement || '');
         setAnnouncementActive(data.announcement_active || false);
+        setAnnouncementUrl(data.announcement_url || '');
+        setAnnouncementUrlActive(data.announcement_url_active || false);
         setSocialLinks({
           facebook_url: data.facebook_url || '',
           instagram_url: data.instagram_url || '',
@@ -49,7 +53,13 @@ export default function ContentPage() {
   async function saveAnnouncement() {
     setSaving('announcement');
     try {
-      await supabase.from('settings').update({ announcement, announcement_active: announcementActive, updated_at: new Date().toISOString() }).eq('id', 1);
+      await supabase.from('settings').update({ 
+        announcement, 
+        announcement_active: announcementActive,
+        announcement_url: announcementUrl,
+        announcement_url_active: announcementUrlActive,
+        updated_at: new Date().toISOString() 
+      }).eq('id', 1);
     } catch (e) { console.log(e); }
     setTimeout(() => setSaving(''), 1500);
   }
@@ -112,6 +122,15 @@ export default function ContentPage() {
               <Toggle checked={announcementActive} onChange={() => setAnnouncementActive(!announcementActive)} />
             </div>
             <textarea value={announcement} onChange={e => setAnnouncement(e.target.value)} rows={3} placeholder="π.χ. 🎉 Νέα εκπομπή κάθε Παρασκευή!" style={{ width: '100%', padding: '14px 18px', border: '2px solid #e5e7eb', borderRadius: 12, fontSize: 15, background: '#f9fafb', resize: 'none', marginBottom: 16, boxSizing: 'border-box' }} />
+            
+            <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 16, marginTop: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', background: announcementUrlActive ? 'rgba(59,130,246,0.1)' : '#f9fafb', borderRadius: 12, marginBottom: 16 }}>
+                <div><p style={{ fontWeight: 600, color: '#1f2937', margin: 0 }}>🔗 Σύνδεσμος</p><p style={{ color: '#6b7280', fontSize: 12, margin: 0 }}>{announcementUrlActive ? '✅ Πατώντας ανοίγει ο σύνδεσμος' : 'Απενεργοποιημένος'}</p></div>
+                <Toggle checked={announcementUrlActive} onChange={() => setAnnouncementUrlActive(!announcementUrlActive)} />
+              </div>
+              <input type="text" value={announcementUrl} onChange={e => setAnnouncementUrl(e.target.value)} placeholder="https://instagram.com/redie969 ή οποιοδήποτε URL" style={{ width: '100%', padding: '14px 18px', border: '2px solid #e5e7eb', borderRadius: 12, fontSize: 15, background: '#f9fafb', marginBottom: 16, boxSizing: 'border-box' }} />
+            </div>
+            
             <button onClick={saveAnnouncement} style={{ padding: '12px 24px', background: saving === 'announcement' ? '#22c55e' : 'linear-gradient(135deg, #e53935, #c62828)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer' }}>{saving === 'announcement' ? '✓ Saved!' : '💾 Save'}</button>
           </div>
 
