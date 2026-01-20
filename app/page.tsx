@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "./lib/supabase";
+import Sidebar from "./components/Sidebar";
 
 export default function Dashboard() {
   const [isLive, setIsLive] = useState(false);
@@ -61,64 +62,7 @@ export default function Dashboard() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f0f2f5', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      
-      <aside style={{ 
-        width: 240, 
-        background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)', 
-        display: 'flex', 
-        flexDirection: 'column', 
-        position: 'fixed', 
-        height: '100vh',
-        zIndex: 20,
-        boxShadow: '4px 0 20px rgba(0,0,0,0.1)'
-      }}>
-        
-        <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ 
-              width: 44, 
-              height: 44, 
-              background: 'linear-gradient(135deg, #e53935 0%, #c62828 100%)', 
-              borderRadius: 12, 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              boxShadow: '0 4px 15px rgba(229, 57, 53, 0.4)'
-            }}>
-              <span style={{ color: 'white', fontWeight: 800, fontSize: 16 }}>R</span>
-            </div>
-            <div>
-              <span style={{ color: 'white', fontWeight: 700, fontSize: 18, letterSpacing: '-0.5px' }}>REDIE</span>
-              <span style={{ color: '#e53935', fontWeight: 700, fontSize: 18, marginLeft: 4 }}>969</span>
-            </div>
-          </div>
-        </div>
-
-        <nav style={{ flex: 1, padding: '20px 12px' }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, background: 'rgba(229,57,53,0.15)', color: '#e53935', textDecoration: 'none', marginBottom: 4 }}>
-            <span>🏠</span> <span style={{ fontSize: 14, fontWeight: 600 }}>Dashboard</span>
-          </Link>
-          <Link href="/analytics" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', marginBottom: 4 }}>
-            <span>📊</span> <span style={{ fontSize: 14, fontWeight: 500 }}>Analytics</span>
-          </Link>
-          <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', marginBottom: 4 }}>
-            <span>📅</span> <span style={{ fontSize: 14, fontWeight: 500 }}>Πρόγραμμα</span>
-          </Link>
-          <Link href="/studio" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', marginBottom: 4 }}>
-            <span>💬</span> <span style={{ fontSize: 14, fontWeight: 500 }}>Studio Chat</span>
-          </Link>
-          <Link href="/notifications" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', marginBottom: 4 }}>
-            <span>🔔</span> <span style={{ fontSize: 14, fontWeight: 500 }}>Notifications</span>
-          </Link>
-          <Link href="/producers" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', marginBottom: 4 }}>
-            <span>👥</span> <span style={{ fontSize: 14, fontWeight: 500 }}>Παραγωγοί</span>
-          </Link>
-          <Link href="/content" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', marginBottom: 4 }}>
-            <span>📱</span> <span style={{ fontSize: 14, fontWeight: 500 }}>App Content</span>
-          </Link>
-        </nav>
-      </aside>
-
+      <Sidebar />
       <main style={{ flex: 1, marginLeft: 240, padding: 32 }}>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
@@ -199,7 +143,7 @@ export default function Dashboard() {
         <div style={{ background: 'white', borderRadius: 20, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #f3f4f6' }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1f2937', margin: '0 0 20px 0' }}>⚡ Quick Actions</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-            <Link href="/admin" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 20, background: '#f9fafb', borderRadius: 16, textDecoration: 'none', transition: 'all 0.2s' }}>
+            <Link href="/admin" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 20, background: '#f9fafb', borderRadius: 16, textDecoration: 'none' }}>
               <span style={{ fontSize: 28, marginBottom: 8 }}>📅</span>
               <span style={{ color: '#374151', fontWeight: 600, fontSize: 14 }}>Manage Shows</span>
             </Link>
