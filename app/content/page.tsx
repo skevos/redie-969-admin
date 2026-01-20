@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { supabase } from "../lib/supabase";
+import Sidebar from "../components/Sidebar";
 
 export default function ContentPage() {
   const [saving, setSaving] = useState('');
@@ -82,25 +82,7 @@ export default function ContentPage() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f0f2f5' }}>
-      <aside style={{ width: 240, background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)', display: 'flex', flexDirection: 'column', position: 'fixed', height: '100vh', zIndex: 20 }}>
-        <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 44, height: 44, background: 'linear-gradient(135deg, #e53935, #c62828)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ color: 'white', fontWeight: 800, fontSize: 16 }}>R</span></div>
-            <div><span style={{ color: 'white', fontWeight: 700, fontSize: 18 }}>REDIE</span><span style={{ color: '#e53935', fontWeight: 700, fontSize: 18, marginLeft: 4 }}>969</span></div>
-          </div>
-        </div>
-        <nav style={{ flex: 1, padding: '16px 12px' }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}><span>🏠</span><span style={{ fontSize: 14 }}>Dashboard</span></Link>
-          <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}><span>📅</span><span style={{ fontSize: 14 }}>Schedule</span></Link>
-          <Link href="/producers" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}><span>🎤</span><span style={{ fontSize: 14 }}>Παραγωγοί</span></Link>
-          <Link href="/studio" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}><span>💬</span><span style={{ fontSize: 14 }}>Live Chat</span></Link>
-          <Link href="/notifications" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}><span>🔔</span><span style={{ fontSize: 14 }}>Notifications</span></Link>
-          <Link href="/content" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', background: 'rgba(229,57,53,0.15)', color: '#e53935', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}><span>📱</span><span style={{ fontSize: 14, fontWeight: 600 }}>App Content</span></Link>
-          <Link href="/splash" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', color: 'rgba(255,255,255,0.7)', borderRadius: 12, textDecoration: 'none', marginBottom: 6 }}><span>🚀</span><span style={{ fontSize: 14 }}>Splash Screen</span></Link>
-        </nav>
-        <div style={{ padding: 20, borderTop: '1px solid rgba(255,255,255,0.06)' }}><p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, margin: 0 }}>REDIE 969 Admin v1.0</p></div>
-      </aside>
-
+      <Sidebar />
       <main style={{ flex: 1, marginLeft: 240 }}>
         <header style={{ background: 'white', borderBottom: '1px solid #e5e7eb', padding: '16px 28px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><span style={{ fontSize: 28 }}>📱</span><div><span style={{ fontSize: 22, fontWeight: 700, color: '#1f2937' }}>App Content</span><p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>Οι αλλαγές εμφανίζονται αμέσως στην εφαρμογή!</p></div></div>
