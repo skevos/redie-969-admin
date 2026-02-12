@@ -10,15 +10,28 @@ export default function SchedulePage() {
   const [showModal, setShowModal] = useState(false);
   const [editingShow, setEditingShow] = useState<any>(null);
   const [form, setForm] = useState({ title: '', producer_name: '', day_of_week: 0, start_time: '09:00', end_time: '10:00', sponsor_name: '', sponsor_active: false, sponsor_url: '', sponsor_url_active: false });
+  const [reminderCounts, setReminderCounts] = useState<Record<string, number>>({});
 
   const daysGreek = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο', 'Κυριακή'];
 
-  useEffect(() => { loadShows(); }, []);
+  useEffect(() => { loadShows(); loadReminderCounts(); }, []);
 
   async function loadShows() {
     const { data } = await supabase.from('shows').select('*').order('day_of_week').order('start_time');
     setShows(data || []);
     setLoading(false);
+  }
+
+  async function loadReminderCounts() {
+    const { data } = await supabase.from('show_reminders').select('show_id');
+    if (data) {
+      const counts: Record<string, number> = {};
+      data.forEach((item: any) => {
+        const key = String(item.show_id);
+        counts[key] = (counts[key] || 0) + 1;
+      });
+      setReminderCounts(counts);
+    }
   }
 
   async function saveShow() {
@@ -115,10 +128,16 @@ export default function SchedulePage() {
                               </p>
                             )}
                           </div>
-                          <div style={{ textAlign: 'right', marginRight: 16 }}>
+                          <div style={{ textAlign: 'right', marginRight: 8 }}>
                             <p style={{ fontWeight: 600, color: '#1f2937', margin: 0, fontSize: 14 }}>{show.start_time?.slice(0,5)} - {show.end_time?.slice(0,5)}</p>
                             {show.is_live && <span style={{ background: '#e53935', color: 'white', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>🔴 LIVE</span>}
                           </div>
+                          {(reminderCounts[String(show.id)] || 0) > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'linear-gradient(135deg, #fefce8 0%, #fef08a 100%)', padding: '6px 12px', borderRadius: 20, border: '1px solid #fde047' }}>
+                              <span style={{ fontSize: 14 }}>⏰</span>
+                              <span style={{ color: '#a16207', fontSize: 14, fontWeight: 700 }}>{reminderCounts[String(show.id)]}</span>
+                            </div>
+                          )}
                           <div style={{ display: 'flex', gap: 8 }}>
                             <button onClick={() => toggleLive(show)} style={{ padding: '8px 14px', background: show.is_live ? '#fef2f2' : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: show.is_live ? '#e53935' : 'white', border: show.is_live ? '1px solid #fecaca' : 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                               {show.is_live ? 'Stop' : 'Go Live'}
@@ -224,3 +243,4 @@ export default function SchedulePage() {
     </div>
   );
 }
+
