@@ -29,6 +29,7 @@ export default function ContentPage() {
   const [androidStoreUrl, setAndroidStoreUrl] = useState('https://play.google.com/store/apps/details?id=gr.redie969.redie_969_app');
   const [iosStoreUrl, setIosStoreUrl] = useState('https://apps.apple.com/app/id6758665312');
   const [liveUrl, setLiveUrl] = useState('');
+  const [liveActive, setLiveActive] = useState(false);
 
   useEffect(() => { loadSettings(); loadChatSponsor(); }, []);
 
@@ -54,6 +55,7 @@ export default function ContentPage() {
         setAndroidStoreUrl(data.android_store_url || 'https://play.google.com/store/apps/details?id=gr.redie969.redie_969_app');
         setIosStoreUrl(data.ios_store_url || 'https://apps.apple.com/app/id6758665312');
         setLiveUrl(data.live_url || '');
+        setLiveActive(data.live_active || false);
       }
     } catch (e) { console.log(e); }
     setLoading(false);
@@ -118,7 +120,7 @@ export default function ContentPage() {
 
   async function saveLiveUrl() {
     setSaving('live');
-    await supabase.from('settings').update({ live_url: liveUrl, updated_at: new Date().toISOString() }).eq('id', 1);
+    await supabase.from('settings').update({ live_url: liveUrl, live_active: liveActive, updated_at: new Date().toISOString() }).eq('id', 1);
     setTimeout(() => setSaving(''), 1500);
   }
 
@@ -239,13 +241,21 @@ export default function ContentPage() {
 
           {/* Live Button URL */}
           <div style={{ background: 'white', borderRadius: 20, padding: 28, border: '1px solid #f3f4f6' }}>
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>🔴 Live Button</h2>
-            <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>Το URL που ανοίγει όταν ο χρήστης πατάει το κουμπί LIVE στην εφαρμογή (π.χ. link για live stream, κάμερα, κ.λπ.)</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1f2937', margin: 0 }}>🔴 Live Button</h2>
+                <p style={{ color: '#6b7280', fontSize: 13, margin: '4px 0 0 0' }}>Όταν ενεργό, το LIVE κουμπί στην εφαρμογή ανοίγει το URL</p>
+              </div>
+              <Toggle checked={liveActive} onChange={() => setLiveActive(!liveActive)} />
+            </div>
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>🔗 Live URL</label>
               <input type="text" value={liveUrl} onChange={e => setLiveUrl(e.target.value)} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box' }} placeholder="https://..." />
             </div>
-            <button onClick={saveLiveUrl} style={{ padding: '12px 24px', background: saving === 'live' ? '#22c55e' : 'linear-gradient(135deg, #e53935, #c62828)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer' }}>{saving === 'live' ? '✓ Saved!' : '💾 Save'}</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button onClick={saveLiveUrl} style={{ padding: '12px 24px', background: saving === 'live' ? '#22c55e' : 'linear-gradient(135deg, #e53935, #c62828)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer' }}>{saving === 'live' ? '✓ Saved!' : '💾 Save'}</button>
+              <span style={{ fontSize: 13, color: liveActive ? '#22c55e' : '#9ca3af' }}>{liveActive ? '✅ Ενεργό — το LIVE κουμπί είναι clickable' : '⬜ Ανενεργό — το LIVE κουμπί δεν κάνει τίποτα'}</span>
+            </div>
           </div>
         </div>
       </main>
