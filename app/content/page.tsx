@@ -25,6 +25,9 @@ export default function ContentPage() {
     tiktok_url: '',
     youtube_url: ''
   });
+  const [shareMessage, setShareMessage] = useState('Άκου REDIE 969 Web Radio! 🎶📻');
+  const [androidStoreUrl, setAndroidStoreUrl] = useState('https://play.google.com/store/apps/details?id=gr.redie969.redie_969_app');
+  const [iosStoreUrl, setIosStoreUrl] = useState('https://apps.apple.com/app/id6758665312');
 
   useEffect(() => { loadSettings(); loadChatSponsor(); }, []);
 
@@ -46,6 +49,9 @@ export default function ContentPage() {
           tiktok_url: data.tiktok_url || '',
           youtube_url: data.youtube_url || ''
         });
+        setShareMessage(data.share_message || 'Άκου REDIE 969 Web Radio! 🎶📻');
+        setAndroidStoreUrl(data.android_store_url || 'https://play.google.com/store/apps/details?id=gr.redie969.redie_969_app');
+        setIosStoreUrl(data.ios_store_url || 'https://apps.apple.com/app/id6758665312');
       }
     } catch (e) { console.log(e); }
     setLoading(false);
@@ -99,6 +105,12 @@ export default function ContentPage() {
   async function saveSocialLinks() {
     setSaving('social');
     await supabase.from('settings').update({ ...socialLinks, updated_at: new Date().toISOString() }).eq('id', 1);
+    setTimeout(() => setSaving(''), 1500);
+  }
+
+  async function saveShareSettings() {
+    setSaving('share');
+    await supabase.from('settings').update({ share_message: shareMessage, android_store_url: androidStoreUrl, ios_store_url: iosStoreUrl, updated_at: new Date().toISOString() }).eq('id', 1);
     setTimeout(() => setSaving(''), 1500);
   }
 
@@ -191,8 +203,34 @@ export default function ContentPage() {
             </div>
             <button onClick={saveSocialLinks} style={{ padding: '12px 24px', background: saving === 'social' ? '#22c55e' : 'linear-gradient(135deg, #e53935, #c62828)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer' }}>{saving === 'social' ? '✓ Saved!' : '💾 Save'}</button>
           </div>
+
+          {/* Share App Settings */}
+          <div style={{ background: 'white', borderRadius: 20, padding: 28, border: '1px solid #f3f4f6' }}>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1f2937', marginBottom: 20 }}>📤 Κοινοποίηση Εφαρμογής</h2>
+            <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>Το μήνυμα που στέλνεται όταν ο χρήστης πατάει το κουμπί κοινοποίησης στην εφαρμογή</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 20 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>💬 Μήνυμα Κοινοποίησης</label>
+                <textarea value={shareMessage} onChange={e => setShareMessage(e.target.value)} rows={3} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 14, resize: 'vertical' }} placeholder="Άκου REDIE 969 Web Radio!" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>🤖 Android (Google Play) Link</label>
+                <input type="text" value={androidStoreUrl} onChange={e => setAndroidStoreUrl(e.target.value)} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box' }} placeholder="https://play.google.com/store/apps/..." />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>🍎 iOS (App Store) Link</label>
+                <input type="text" value={iosStoreUrl} onChange={e => setIosStoreUrl(e.target.value)} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box' }} placeholder="https://apps.apple.com/app/..." />
+              </div>
+              <div style={{ background: '#f9fafb', borderRadius: 12, padding: 16, border: '1px solid #e5e7eb' }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 8 }}>👁️ Προεπισκόπηση μηνύματος:</p>
+                <p style={{ fontSize: 14, color: '#1f2937', margin: 0, whiteSpace: 'pre-wrap' }}>{shareMessage}{'\n\n'}📱 Android: {androidStoreUrl}{'\n'}🍎 iOS: {iosStoreUrl}</p>
+              </div>
+            </div>
+            <button onClick={saveShareSettings} style={{ padding: '12px 24px', background: saving === 'share' ? '#22c55e' : 'linear-gradient(135deg, #e53935, #c62828)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer' }}>{saving === 'share' ? '✓ Saved!' : '💾 Save'}</button>
+          </div>
         </div>
       </main>
     </div>
   );
 }
+
