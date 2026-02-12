@@ -39,12 +39,10 @@ export default function ProducersPage() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [favoriteCounts, setFavoriteCounts] = useState<Record<string, number>>({});
-  const [reminderCounts, setReminderCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     loadProducers();
     loadFavoriteCounts();
-    loadReminderCounts();
   }, []);
 
   async function loadProducers() {
@@ -67,21 +65,6 @@ export default function ProducersPage() {
         counts[item.producer_name] = item.favorites_count;
       });
       setFavoriteCounts(counts);
-    }
-  }
-
-  async function loadReminderCounts() {
-    const { data, error } = await supabase
-      .from('show_reminders')
-      .select('producer_name');
-    if (data) {
-      const counts: Record<string, number> = {};
-      data.forEach((item: any) => {
-        if (item.producer_name) {
-          counts[item.producer_name] = (counts[item.producer_name] || 0) + 1;
-        }
-      });
-      setReminderCounts(counts);
     }
   }
 
@@ -191,7 +174,6 @@ export default function ProducersPage() {
 
   // Calculate total favorites
   const totalFavorites = Object.values(favoriteCounts).reduce((a, b) => a + b, 0);
-  const totalReminders = Object.values(reminderCounts).reduce((a, b) => a + b, 0);
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
@@ -220,22 +202,6 @@ export default function ProducersPage() {
               <div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: '#dc2626' }}>{totalFavorites}</div>
                 <div style={{ fontSize: 10, color: '#ef4444', fontWeight: 500 }}>ΣΥΝΟΛΙΚΑ</div>
-              </div>
-            </div>
-            {/* Total Reminders Badge */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 8, 
-              padding: '8px 16px', 
-              background: 'linear-gradient(135deg, #fefce8 0%, #fef08a 100%)', 
-              borderRadius: 12,
-              border: '1px solid #fde047'
-            }}>
-              <span style={{ fontSize: 20 }}>⏰</span>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#a16207' }}>{totalReminders}</div>
-                <div style={{ fontSize: 10, color: '#ca8a04', fontWeight: 500 }}>ΥΠΕΝΘΥΜΙΣΕΙΣ</div>
               </div>
             </div>
             <button
@@ -274,7 +240,6 @@ export default function ProducersPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
               {producers.map(producer => {
                 const likes = favoriteCounts[producer.name] || 0;
-                const reminders = reminderCounts[producer.name] || 0;
                 return (
                 <div
                   key={producer.id}
@@ -287,22 +252,7 @@ export default function ProducersPage() {
                     position: 'relative',
                   }}
                 >
-                  {/* Badges */}
-                  <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 6 }}>
-                  {reminders > 0 && (
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      background: 'linear-gradient(135deg, #fefce8 0%, #fef08a 100%)',
-                      padding: '6px 12px',
-                      borderRadius: 20,
-                      border: '1px solid #fde047',
-                    }}>
-                      <span style={{ color: '#a16207', fontSize: 14 }}>⏰</span>
-                      <span style={{ color: '#a16207', fontSize: 14, fontWeight: 700 }}>{reminders}</span>
-                    </div>
-                  )}
+                  {/* Favorites Badge */}
                   {likes > 0 && (
                     <div style={{
                       position: 'absolute',
@@ -320,7 +270,6 @@ export default function ProducersPage() {
                       <span style={{ color: '#dc2626', fontSize: 14, fontWeight: 700 }}>{likes}</span>
                     </div>
                   )}
-                  </div>
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                     {producer.photo_url ? (
@@ -613,4 +562,3 @@ export default function ProducersPage() {
     </div>
   );
 }
-

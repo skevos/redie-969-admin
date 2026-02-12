@@ -3,81 +3,184 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy - REDIE 969</title>
+    <title>Πολιτική Απορρήτου - REDIE 969</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #1a1a1a; color: #ffffff; line-height: 1.6; }
-        h1 { color: #E31E24; border-bottom: 2px solid #E31E24; padding-bottom: 10px; }
-        h2 { color: #E31E24; margin-top: 30px; }
-        a { color: #E31E24; }
-        .updated { color: #888; font-size: 14px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e5e7eb;
+            line-height: 1.7;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .logo-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 20px;
+            color: white;
+        }
+        .logo-text {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .logo-text span {
+            color: #e53935;
+        }
+        h1 {
+            font-size: 32px;
+            color: white;
+            margin-bottom: 10px;
+        }
+        .date {
+            color: #9ca3af;
+            font-size: 14px;
+        }
+        h2 {
+            color: #e53935;
+            font-size: 20px;
+            margin: 30px 0 15px 0;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(229, 57, 53, 0.3);
+        }
+        p, li {
+            color: #d1d5db;
+            margin-bottom: 12px;
+        }
+        ul {
+            padding-left: 24px;
+            margin-bottom: 20px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        .highlight {
+            background: rgba(229, 57, 53, 0.1);
+            border-left: 3px solid #e53935;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 20px 0;
+        }
+        .contact {
+            background: rgba(255,255,255,0.05);
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 30px;
+        }
+        .contact a {
+            color: #e53935;
+            text-decoration: none;
+        }
+        .contact a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            color: #6b7280;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
-    <h1>🔒 Πολιτική Απορρήτου - REDIE 969</h1>
-    <p class="updated">Τελευταία ενημέρωση: Ιανουάριος 2025</p>
+    <div class="container">
+        <div class="header">
+            <div class="logo">
+                <div class="logo-icon">R</div>
+                <div class="logo-text">REDIE <span>969</span></div>
+            </div>
+            <h1>Πολιτική Απορρήτου</h1>
+            <p class="date">Τελευταία ενημέρωση: 26 Ιανουαρίου 2026</p>
+        </div>
 
-    <h2>1. Εισαγωγή</h2>
-    <p>Η εφαρμογή REDIE 969 ("εμείς", "μας") σέβεται την ιδιωτικότητά σας. Αυτή η πολιτική απορρήτου εξηγεί πώς συλλέγουμε, χρησιμοποιούμε και προστατεύουμε τα προσωπικά σας δεδομένα.</p>
+        <p>Η εφαρμογή REDIE 969 ("εμείς", "μας") σέβεται το απόρρητό σας. Αυτή η πολιτική εξηγεί ποια δεδομένα συλλέγουμε και πώς τα χρησιμοποιούμε.</p>
 
-    <h2>2. Δεδομένα που Συλλέγουμε</h2>
-    <p>Συλλέγουμε τα ακόλουθα δεδομένα:</p>
-    <ul>
-        <li><strong>Email και κωδικός:</strong> Για τη δημιουργία λογαριασμού</li>
-        <li><strong>Device tokens:</strong> Για την αποστολή push notifications</li>
-        <li><strong>Προτιμήσεις ακρόασης:</strong> Για εξατομικευμένη εμπειρία</li>
-        <li><strong>Μηνύματα chat:</strong> Για την υπηρεσία live chat</li>
-    </ul>
+        <h2>📱 Δεδομένα που Συλλέγουμε</h2>
+        <ul>
+            <li><strong>Firebase Cloud Messaging Token:</strong> Για την αποστολή push notifications σχετικά με νέες εκπομπές και ανακοινώσεις.</li>
+            <li><strong>Αναγνωριστικό Συσκευής:</strong> Ανώνυμο ID για στατιστικά χρήσης της εφαρμογής.</li>
+            <li><strong>Μηνύματα Chat:</strong> Όταν συμμετέχετε στο live chat, τα μηνύματά σας αποθηκεύονται με το όνομα χρήστη που επιλέγετε.</li>
+        </ul>
 
-    <h2>3. Πώς Χρησιμοποιούμε τα Δεδομένα</h2>
-    <ul>
-        <li>Αποστολή ειδοποιήσεων για εκπομπές και προσφορές</li>
-        <li>Βελτίωση της εμπειρίας χρήστη</li>
-        <li>Παροχή τεχνικής υποστήριξης</li>
-        <li>Στατιστική ανάλυση (ανώνυμα)</li>
-    </ul>
+        <div class="highlight">
+            <strong>🔒 Σημαντικό:</strong> Δεν συλλέγουμε προσωπικά στοιχεία όπως email, τηλέφωνο, ή τοποθεσία. Η εφαρμογή δεν απαιτεί εγγραφή ή σύνδεση.
+        </div>
 
-    <h2>4. Υπηρεσίες Τρίτων</h2>
-    <p>Χρησιμοποιούμε τις ακόλουθες υπηρεσίες:</p>
-    <ul>
-        <li><strong>Supabase:</strong> Για αποθήκευση δεδομένων και authentication</li>
-        <li><strong>Firebase Cloud Messaging:</strong> Για push notifications</li>
-    </ul>
+        <h2>🎯 Πώς Χρησιμοποιούμε τα Δεδομένα</h2>
+        <ul>
+            <li>Αποστολή ειδοποιήσεων για νέες εκπομπές και ανακοινώσεις</li>
+            <li>Βελτίωση της εμπειρίας χρήσης της εφαρμογής</li>
+            <li>Στατιστικά ανάλυση (πόσοι χρήστες χρησιμοποιούν την εφαρμογή)</li>
+            <li>Λειτουργία του live chat</li>
+        </ul>
 
-    <h2>5. Ασφάλεια Δεδομένων</h2>
-    <p>Προστατεύουμε τα δεδομένα σας με:</p>
-    <ul>
-        <li>Κρυπτογράφηση SSL/TLS</li>
-        <li>Ασφαλείς servers</li>
-        <li>Περιορισμένη πρόσβαση στα δεδομένα</li>
-    </ul>
+        <h2>🤝 Κοινοποίηση Δεδομένων</h2>
+        <p>Δεν πουλάμε, ενοικιάζουμε ή μοιραζόμαστε τα δεδομένα σας με τρίτους για διαφημιστικούς σκοπούς.</p>
+        <p>Χρησιμοποιούμε τις ακόλουθες υπηρεσίες:</p>
+        <ul>
+            <li><strong>Firebase (Google):</strong> Για push notifications</li>
+            <li><strong>Supabase:</strong> Για αποθήκευση δεδομένων chat και ρυθμίσεων</li>
+            <li><strong>Radio.co:</strong> Για live streaming του ραδιοφώνου</li>
+        </ul>
 
-    <h2>6. Τα Δικαιώματά Σας (GDPR)</h2>
-    <p>Έχετε το δικαίωμα να:</p>
-    <ul>
-        <li>Ζητήσετε πρόσβαση στα δεδομένα σας</li>
-        <li>Διορθώσετε τα δεδομένα σας</li>
-        <li>Διαγράψετε τον λογαριασμό σας</li>
-        <li>Εξαγάγετε τα δεδομένα σας</li>
-        <li>Απενεργοποιήσετε τις ειδοποιήσεις</li>
-    </ul>
+        <h2>🔐 Ασφάλεια</h2>
+        <p>Λαμβάνουμε εύλογα μέτρα για την προστασία των δεδομένων σας. Όλες οι επικοινωνίες γίνονται μέσω κρυπτογραφημένων συνδέσεων (HTTPS).</p>
 
-    <h2>7. Cookies</h2>
-    <p>Η εφαρμογή δεν χρησιμοποιεί cookies. Η web έκδοση χρησιμοποιεί μόνο απαραίτητα cookies για τη λειτουργία της.</p>
+        <h2>👶 Παιδιά</h2>
+        <p>Η εφαρμογή δεν απευθύνεται σε παιδιά κάτω των 13 ετών και δεν συλλέγουμε εν γνώσει μας δεδομένα από παιδιά.</p>
 
-    <h2>8. Παιδιά</h2>
-    <p>Η εφαρμογή δεν απευθύνεται σε παιδιά κάτω των 13 ετών. Δεν συλλέγουμε εν γνώσει μας δεδομένα από παιδιά.</p>
+        <h2>✏️ Τα Δικαιώματά Σας</h2>
+        <p>Έχετε το δικαίωμα να:</p>
+        <ul>
+            <li>Απενεργοποιήσετε τις ειδοποιήσεις από τις ρυθμίσεις της συσκευής σας</li>
+            <li>Ζητήσετε διαγραφή των μηνυμάτων σας από το chat</li>
+            <li>Απεγκαταστήσετε την εφαρμογή ανά πάσα στιγμή</li>
+        </ul>
 
-    <h2>9. Αλλαγές στην Πολιτική</h2>
-    <p>Ενδέχεται να ενημερώσουμε αυτή την πολιτική. Θα σας ειδοποιήσουμε για σημαντικές αλλαγές μέσω της εφαρμογής.</p>
+        <h2>📝 Αλλαγές στην Πολιτική</h2>
+        <p>Ενδέχεται να ενημερώσουμε αυτή την πολιτική κατά καιρούς. Θα σας ειδοποιήσουμε για σημαντικές αλλαγές μέσω της εφαρμογής.</p>
 
-    <h2>10. Επικοινωνία</h2>
-    <p>Για ερωτήσεις σχετικά με την πολιτική απορρήτου:</p>
-    <ul>
-        <li>Email: <a href="mailto:info@redie969.gr">info@redie969.gr</a></li>
-        <li>Website: <a href="https://redie969.gr">redie969.gr</a></li>
-    </ul>
+        <div class="contact">
+            <h2 style="margin-top: 0;">📧 Επικοινωνία</h2>
+            <p>Για ερωτήσεις σχετικά με την πολιτική απορρήτου:</p>
+            <p>
+                <strong>Email:</strong> <a href="mailto:info@redie969.gr">info@redie969.gr</a><br>
+                <strong>Website:</strong> <a href="https://redie969.gr" target="_blank">redie969.gr</a>
+            </p>
+        </div>
 
-    <hr style="margin-top: 40px; border-color: #333;">
-    <p style="text-align: center; color: #888;">© 2025 REDIE 969 - All Rights Reserved</p>
+        <div class="footer">
+            <p>© 2026 REDIE 969. All rights reserved.</p>
+            <p>Developed by Kokkinidis All About Tech</p>
+        </div>
+    </div>
 </body>
 </html>
