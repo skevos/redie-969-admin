@@ -6,6 +6,8 @@ import { supabase } from "../lib/supabase";
 interface CountryStats {
   country: string;
   count: number;
+  iosCount: number;
+  androidCount: number;
   cities: { city: string; count: number }[];
 }
 
@@ -13,6 +15,8 @@ export default function GeoAnalyticsPage() {
   const [stats, setStats] = useState<CountryStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedCountry, setExpandedCountry] = useState<string | null>('Greece');
+  const [totalIos, setTotalIos] = useState(0);
+  const [totalAndroid, setTotalAndroid] = useState(0);
 
   useEffect(() => {
     loadStats();
@@ -20,18 +24,21 @@ export default function GeoAnalyticsPage() {
 
   async function loadStats() {
     try {
-      const { data: tokens } = await supabase.from('fcm_tokens').select('country, city, region');
+      const { data: tokens } = await supabase.from('fcm_tokens').select('country, city, region, platform');
       
       if (tokens) {
-        const countryMap = new Map<string, { count: number; cities: Map<string, number> }>();
+        const countryMap = new Map<string, { count: number; iosCount: number; androidCount: number; cities: Map<string, number> }>();
+        let ios = 0, android = 0;
         
         tokens.forEach(t => {
+          if (t.platform === 'ios') ios++; else android++;
           if (t.country) {
             if (!countryMap.has(t.country)) {
-              countryMap.set(t.country, { count: 0, cities: new Map() });
+              countryMap.set(t.country, { count: 0, iosCount: 0, androidCount: 0, cities: new Map() });
             }
             const countryData = countryMap.get(t.country)!;
             countryData.count++;
+            if (t.platform === 'ios') countryData.iosCount++; else countryData.androidCount++;
             
             if (t.city) {
               countryData.cities.set(t.city, (countryData.cities.get(t.city) || 0) + 1);
@@ -39,10 +46,15 @@ export default function GeoAnalyticsPage() {
           }
         });
         
+        setTotalIos(ios);
+        setTotalAndroid(android);
+        
         const statsArray: CountryStats[] = Array.from(countryMap.entries())
           .map(([country, data]) => ({
             country,
             count: data.count,
+            iosCount: data.iosCount,
+            androidCount: data.androidCount,
             cities: Array.from(data.cities.entries())
               .map(([city, count]) => ({ city, count }))
               .sort((a, b) => b.count - a.count)
@@ -61,28 +73,13 @@ export default function GeoAnalyticsPage() {
   const totalDevices = stats.reduce((sum, s) => sum + s.count, 0);
 
   const countryFlags: Record<string, string> = {
-    'Greece': '🇬🇷',
-    'United States': '🇺🇸',
-    'Australia': '🇦🇺',
-    'Germany': '🇩🇪',
-    'United Kingdom': '🇬🇧',
-    'France': '🇫🇷',
-    'Italy': '🇮🇹',
-    'Spain': '🇪🇸',
-    'Netherlands': '🇳🇱',
-    'Belgium': '🇧🇪',
-    'Switzerland': '🇨🇭',
-    'Austria': '🇦🇹',
-    'Sweden': '🇸🇪',
-    'Norway': '🇳🇴',
-    'Denmark': '🇩🇰',
-    'Finland': '🇫🇮',
-    'Poland': '🇵🇱',
-    'Czech Republic': '🇨🇿',
-    'Portugal': '🇵🇹',
-    'Ireland': '🇮🇪',
-    'Cyprus': '🇨🇾',
-    'Canada': '🇨🇦',
+    'Greece': '🇬🇷', 'United States': '🇺🇸', 'Australia': '🇦🇺', 'Germany': '🇩🇪',
+    'United Kingdom': '🇬🇧', 'France': '🇫🇷', 'Italy': '🇮🇹', 'Spain': '🇪🇸',
+    'Netherlands': '🇳🇱', 'Belgium': '🇧🇪', 'Switzerland': '🇨🇭', 'Austria': '🇦🇹',
+    'Sweden': '🇸🇪', 'Norway': '🇳🇴', 'Denmark': '🇩🇰', 'Finland': '🇫🇮',
+    'Poland': '🇵🇱', 'Czech Republic': '🇨🇿', 'Portugal': '🇵🇹', 'Ireland': '🇮🇪',
+    'Cyprus': '🇨🇾', 'Canada': '🇨🇦', 'Brasil': '🇧🇷', 'Brazil': '🇧🇷',
+    'Turkey': '🇹🇷', 'Bulgaria': '🇧🇬', 'Romania': '🇷🇴', 'Albania': '🇦🇱',
   };
 
   return (
@@ -94,8 +91,18 @@ export default function GeoAnalyticsPage() {
             <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: '#1f2937' }}>🌍 Geo Analytics</h1>
             <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 14 }}>Συσκευές ανά χώρα και περιοχή</p>
           </div>
-          <div style={{ background: 'linear-gradient(135deg, #E53935 0%, #c62828 100%)', color: 'white', padding: '12px 24px', borderRadius: 12, fontWeight: 700 }}>
-            📱 {totalDevices} Συσκευές
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ background: '#f0fdf4', padding: '8px 16px', borderRadius: 10, textAlign: 'center' }}>
+              <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#166534' }}>{totalAndroid}</p>
+              <p style={{ margin: 0, fontSize: 11, color: '#6b7280' }}>🤖 Android</p>
+            </div>
+            <div style={{ background: '#eff6ff', padding: '8px 16px', borderRadius: 10, textAlign: 'center' }}>
+              <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1e40af' }}>{totalIos}</p>
+              <p style={{ margin: 0, fontSize: 11, color: '#6b7280' }}>🍎 iOS</p>
+            </div>
+            <div style={{ background: 'linear-gradient(135deg, #E53935 0%, #c62828 100%)', color: 'white', padding: '8px 20px', borderRadius: 10, fontWeight: 700, fontSize: 18 }}>
+              📱 {totalDevices}
+            </div>
           </div>
         </header>
 
@@ -135,7 +142,7 @@ export default function GeoAnalyticsPage() {
                               <span style={{ fontSize: 24 }}>{countryFlags[stat.country] || '🏳️'}</span>
                               <div>
                                 <p style={{ margin: 0, fontWeight: 600, color: '#1f2937' }}>{stat.country}</p>
-                                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6b7280' }}>{stat.cities.length} πόλεις</p>
+                                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6b7280' }}>{stat.cities.length} πόλεις · 🤖{stat.androidCount} 🍎{stat.iosCount}</p>
                               </div>
                             </div>
                             <div style={{ textAlign: 'right' }}>
