@@ -12,17 +12,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Firebase config missing' }, { status: 500 });
     }
 
-    // Get access token
     const jwt = await createJWT(clientEmail, privateKey);
     const accessToken = await getAccessToken(jwt);
 
-    // Handle multiple tokens (batch)
     const tokenList = tokens || (token ? [token] : []);
     const results = [];
-    const seenTokens = new Set(); // Prevent duplicates
+    const seenTokens = new Set();
 
     for (const t of tokenList) {
-      // Skip duplicate tokens
       if (seenTokens.has(t)) continue;
       seenTokens.add(t);
 
@@ -44,6 +41,19 @@ export async function POST(request: NextRequest) {
                   notification: {
                     sound: 'default',
                     channelId: 'redie969_channel'
+                  }
+                },
+                apns: {
+                  payload: {
+                    aps: {
+                      alert: { title, body },
+                      sound: 'default',
+                      badge: 1,
+                      'content-available': 1
+                    }
+                  },
+                  headers: {
+                    'apns-priority': '10'
                   }
                 }
               },
