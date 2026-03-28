@@ -26,6 +26,8 @@ export default function PollsPage() {
     is_active: false,
     vote_multiplier: 0,
     show_results: true,
+    countdown_enabled: false,
+    countdown_minutes: 0,
   });
 
   useEffect(() => {
@@ -81,10 +83,19 @@ export default function PollsPage() {
 
   async function savePoll() {
     setSaving(true);
+    const { countdown_enabled, countdown_minutes, ...pollData } = form as any;
     if (editingPoll) {
-      await supabase.from("polls").update(form).eq("id", editingPoll.id);
+      await supabase.from("polls").update(pollData).eq("id", editingPoll.id);
     } else {
-      await supabase.from("polls").insert(form);
+      await supabase.from("polls").insert(pollData);
+    }
+    // If countdown enabled and poll will be active, set countdown_end
+    if (countdown_enabled && countdown_minutes > 0) {
+      const targetId = editingPoll?.id;
+      if (targetId) {
+        const countdown_end = new Date(Date.now() + countdown_minutes * 60000).toISOString();
+        await supabase.from("polls").update({ countdown_end }).eq("id", targetId);
+      }
     }
     setSaving(false);
     closeModal();
@@ -148,6 +159,8 @@ export default function PollsPage() {
       is_active: poll.is_active || false,
       vote_multiplier: poll.vote_multiplier || 0,
       show_results: poll.show_results !== false,
+      countdown_enabled: false,
+      countdown_minutes: 0,
     });
     setShowModal(true);
   }
@@ -166,6 +179,8 @@ export default function PollsPage() {
       is_active: false,
       vote_multiplier: 0,
       show_results: true,
+      countdown_enabled: false,
+      countdown_minutes: 0,
     });
     setShowModal(true);
   }
@@ -843,37 +858,41 @@ export default function PollsPage() {
                 />
               </div>
 
-              {/* Show Results */}
-              <div
-                style={{
-                  borderTop: "2px solid #e5e7eb",
-                  paddingTop: 16,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "10px 14px",
-                    background: form.show_results ? "rgba(59,130,246,0.08)" : "#f9fafb",
-                    borderRadius: 10,
-                    border: "1px solid #e5e7eb",
-                  }}
-                >
+              {/* Show Results + Countdown toggles */}
+              <div style={{ borderTop: "2px solid #e5e7eb", paddingTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+                <p style={{ fontWeight: 600, color: "#1f2937", margin: "0 0 4px 0", fontSize: 13 }}>⚙️ Επιλογές</p>
+
+                {/* Show Results */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: form.show_results ? "rgba(59,130,246,0.08)" : "#f9fafb", borderRadius: 10, border: "1px solid #e5e7eb" }}>
                   <div>
-                    <p style={{ fontWeight: 600, color: "#1f2937", margin: 0, fontSize: 13 }}>
-                      📊 Εμφάνιση αποτελεσμάτων
-                    </p>
-                    <p style={{ color: "#6b7280", fontSize: 11, margin: 0 }}>
-                      {form.show_results ? "✅ Οι χρήστες βλέπουν % ψήφων" : "🚫 Κρυμμένα τα αποτελέσματα"}
-                    </p>
+                    <p style={{ fontWeight: 600, color: "#1f2937", margin: 0, fontSize: 13 }}>📊 Εμφάνιση ψήφων</p>
+                    <p style={{ color: "#6b7280", fontSize: 11, margin: 0 }}>{form.show_results ? "✅ Οι χρήστες βλέπουν % ψήφων" : "🚫 Κρυμμένα τα αποτελέσματα"}</p>
                   </div>
-                  <Toggle
-                    checked={form.show_results}
-                    onChange={() => setForm({ ...form, show_results: !form.show_results })}
-                  />
+                  <Toggle checked={form.show_results} onChange={() => setForm({ ...form, show_results: !form.show_results })} />
                 </div>
+
+                {/* Countdown */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: form.countdown_enabled ? "rgba(229,57,53,0.08)" : "#f9fafb", borderRadius: 10, border: "1px solid #e5e7eb" }}>
+                  <div>
+                    <p style={{ fontWeight: 600, color: "#1f2937", margin: 0, fontSize: 13 }}>⏱ Αντίστροφη μέτρηση</p>
+                    <p style={{ color: "#6b7280", fontSize: 11, margin: 0 }}>{form.countdown_enabled ? "✅ Θα ξεκινήσει με την ενεργοποίηση" : "🚫 Χωρίς χρονόμετρο"}</p>
+                  </div>
+                  <Toggle checked={!!form.countdown_enabled} onChange={() => setForm({ ...form, countdown_enabled: !form.countdown_enabled })} />
+                </div>
+                {form.countdown_enabled && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", background: "#fef2f2", borderRadius: 10 }}>
+                    <span style={{ fontSize: 12, color: "#374151", fontWeight: 600 }}>Διάρκεια:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={form.countdown_minutes || ""}
+                      onChange={(e) => setForm({ ...form, countdown_minutes: parseInt(e.target.value) || 0 })}
+                      placeholder="λεπτά"
+                      style={{ width: 80, padding: "6px 10px", border: "2px solid #e53935", borderRadius: 8, fontSize: 13, outline: "none" }}
+                    />
+                    <span style={{ fontSize: 12, color: "#6b7280" }}>λεπτά</span>
+                  </div>
+                )}
               </div>
 
               {/* Sponsor */}
