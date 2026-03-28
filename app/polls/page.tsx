@@ -503,107 +503,40 @@ export default function PollsPage() {
                         </div>
 
                         {/* Countdown section */}
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                            padding: "10px 14px",
-                            background: "#fef2f2",
-                            borderRadius: 10,
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: 12,
-                              color: "#374151",
-                              fontWeight: 600,
-                            }}
-                          >
-                            ⏱ Αντίστροφη μέτρηση:
-                          </span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={countdownInput[poll.id] || ""}
-                            onChange={(e) =>
-                              setCountdownInput((prev) => ({
-                                ...prev,
-                                [poll.id]: parseInt(e.target.value) || 0,
-                              }))
-                            }
-                            placeholder="λεπτά"
-                            style={{
-                              width: 80,
-                              padding: "6px 10px",
-                              border: "2px solid #e53935",
-                              borderRadius: 8,
-                              fontSize: 13,
-                              outline: "none",
-                            }}
-                          />
-                          <span style={{ fontSize: 11, color: "#6b7280" }}>
-                            λεπτά
-                          </span>
-
-                          {!poll.is_active && (countdownInput[poll.id] || 0) > 0 && (
-                            <span
-                              style={{
-                                fontSize: 11,
-                                color: "#22c55e",
-                                fontWeight: 600,
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: countdownActive ? "rgba(229,57,53,0.08)" : "#f9fafb", borderRadius: 10, border: "1px solid #e5e7eb", flexWrap: "wrap", gap: 10 }}>
+                          <div>
+                            <p style={{ fontWeight: 600, color: "#1f2937", margin: 0, fontSize: 13 }}>⏱ Αντίστροφη μέτρηση</p>
+                            <p style={{ color: "#6b7280", fontSize: 11, margin: 0 }}>
+                              {countdownActive ? `✅ ${countdowns[poll.id]} απομένει` : countdownExpired ? "⛔ Έληξε" : "🚫 Ανενεργή"}
+                            </p>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            {!poll.countdown_end && (
+                              <input
+                                type="number"
+                                min="1"
+                                value={countdownInput[poll.id] || ""}
+                                onChange={(e) => setCountdownInput((prev) => ({ ...prev, [poll.id]: parseInt(e.target.value) || 0 }))}
+                                placeholder="λεπτά"
+                                style={{ width: 70, padding: "5px 8px", border: "2px solid #e53935", borderRadius: 8, fontSize: 13, outline: "none" }}
+                              />
+                            )}
+                            <Toggle
+                              checked={!!poll.countdown_end && !countdownExpired}
+                              onChange={async () => {
+                                if (poll.countdown_end && !countdownExpired) {
+                                  await supabase.from("polls").update({ countdown_end: null }).eq("id", poll.id);
+                                  loadPolls();
+                                } else {
+                                  const minutes = countdownInput[poll.id] || 0;
+                                  if (minutes <= 0) return;
+                                  const countdown_end = new Date(Date.now() + minutes * 60000).toISOString();
+                                  await supabase.from("polls").update({ countdown_end }).eq("id", poll.id);
+                                  loadPolls();
+                                }
                               }}
-                            >
-                              ✓ Θα ξεκινήσει με την ενεργοποίηση
-                            </span>
-                          )}
-
-                          {poll.is_active && poll.countdown_end && !countdownExpired && (
-                            <button
-                              onClick={() => clearCountdown(poll.id)}
-                              style={{
-                                padding: "6px 12px",
-                                background: "#dc2626",
-                                color: "white",
-                                border: "none",
-                                borderRadius: 8,
-                                fontSize: 12,
-                                cursor: "pointer",
-                                fontWeight: 600,
-                              }}
-                            >
-                              ✕ Σταμάτα
-                            </button>
-                          )}
-
-                          {poll.is_active && (countdownInput[poll.id] || 0) > 0 && !poll.countdown_end && (
-                            <button
-                              onClick={async () => {
-                                const minutes = countdownInput[poll.id];
-                                const countdown_end = new Date(
-                                  Date.now() + minutes * 60000
-                                ).toISOString();
-                                await supabase
-                                  .from("polls")
-                                  .update({ countdown_end })
-                                  .eq("id", poll.id);
-                                loadPolls();
-                              }}
-                              style={{
-                                padding: "6px 12px",
-                                background: "#e53935",
-                                color: "white",
-                                border: "none",
-                                borderRadius: 8,
-                                fontSize: 12,
-                                cursor: "pointer",
-                                fontWeight: 600,
-                              }}
-                            >
-                              ▶ Εκκίνηση
-                            </button>
-                          )}
+                            />
+                          </div>
                         </div>
                       </div>
 
