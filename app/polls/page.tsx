@@ -25,6 +25,7 @@ export default function PollsPage() {
     sponsor_url_active: false,
     is_active: false,
     vote_multiplier: 0,
+    show_results: true,
   });
 
   useEffect(() => {
@@ -146,6 +147,7 @@ export default function PollsPage() {
       sponsor_url_active: poll.sponsor_url_active || false,
       is_active: poll.is_active || false,
       vote_multiplier: poll.vote_multiplier || 0,
+      show_results: poll.show_results !== false,
     });
     setShowModal(true);
   }
@@ -163,6 +165,7 @@ export default function PollsPage() {
       sponsor_url_active: false,
       is_active: false,
       vote_multiplier: 0,
+      show_results: true,
     });
     setShowModal(true);
   }
@@ -616,6 +619,24 @@ export default function PollsPage() {
                           {poll.is_active ? "⏹ Απενεργ." : "▶ Ενεργοπ."}
                         </button>
                         <button
+                          onClick={async () => {
+                            await supabase.from("polls").update({ show_results: !poll.show_results }).eq("id", poll.id);
+                            loadPolls();
+                          }}
+                          style={{
+                            padding: "10px 16px",
+                            background: poll.show_results !== false ? "#eff6ff" : "#f3f4f6",
+                            color: poll.show_results !== false ? "#3b82f6" : "#6b7280",
+                            border: poll.show_results !== false ? "1px solid #bfdbfe" : "1px solid #e5e7eb",
+                            borderRadius: 10,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            fontSize: 13,
+                          }}
+                        >
+                          {poll.show_results !== false ? "📊 Αποτελέσματα ON" : "🚫 Αποτελέσματα OFF"}
+                        </button>
+                        <button
                           onClick={() => openEdit(poll)}
                           style={{
                             padding: "10px 16px",
@@ -820,6 +841,39 @@ export default function PollsPage() {
                   }}
                   placeholder="0"
                 />
+              </div>
+
+              {/* Show Results */}
+              <div
+                style={{
+                  borderTop: "2px solid #e5e7eb",
+                  paddingTop: 16,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "10px 14px",
+                    background: form.show_results ? "rgba(59,130,246,0.08)" : "#f9fafb",
+                    borderRadius: 10,
+                    border: "1px solid #e5e7eb",
+                  }}
+                >
+                  <div>
+                    <p style={{ fontWeight: 600, color: "#1f2937", margin: 0, fontSize: 13 }}>
+                      📊 Εμφάνιση αποτελεσμάτων
+                    </p>
+                    <p style={{ color: "#6b7280", fontSize: 11, margin: 0 }}>
+                      {form.show_results ? "✅ Οι χρήστες βλέπουν % ψήφων" : "🚫 Κρυμμένα τα αποτελέσματα"}
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={form.show_results}
+                    onChange={() => setForm({ ...form, show_results: !form.show_results })}
+                  />
+                </div>
               </div>
 
               {/* Sponsor */}
