@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const { data: user, error } = await db
       .from('dashboard_users')
       .select('id, username, password_hash, display_name, role, producer_id, is_active, failed_login_attempts, locked_until')
-      .eq('username', username)
+      .ilike('username', username.replace(/[\\%_]/g, (m: string) => '\\' + m)) // case-insensitive (stored names may have capitals)
       .eq('is_active', true)
       .maybeSingle();
 
