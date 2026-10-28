@@ -54,7 +54,7 @@ export default function AnimationsPage() {
   }
 
   async function stopAll() {
-    await supabase.from('app_animations').update({ is_active: false }).neq('id', '');
+    await supabase.from('app_animations').update({ is_active: false }).eq('is_active', true);
     load();
   }
 

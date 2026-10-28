@@ -3,6 +3,19 @@ import { useState, useEffect } from "react";
 import Sidebar from "../components/Sidebar";
 import { supabase } from "../lib/supabase";
 
+// Fetch all rows past the 1000-row PostgREST cap
+async function fetchAll<T = any>(buildQuery: () => any): Promise<T[] | null> {
+  const pageSize = 1000;
+  const all: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+    if (error) return from === 0 ? null : all;
+    all.push(...((data || []) as T[]));
+    if (!data || data.length < pageSize) break;
+  }
+  return all;
+}
+
 interface AnalyticsData {
   totalInstalls: number;
   activeUsers: number;
@@ -31,8 +44,8 @@ export default function AnalyticsPage() {
 
   async function loadAnalytics() {
     try {
-      const { data: devices } = await supabase.from('app_analytics').select('*').order('last_open', { ascending: false });
-      if (!devices) return;
+      const devices = await fetchAll<any>(() => supabase.from('app_analytics').select('*').order('last_open', { ascending: false }));
+      if (!devices) { setLoading(false); return; }
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -56,7 +69,7 @@ export default function AnalyticsPage() {
 
   async function loadLocationStats() {
     try {
-      const { data: tokens } = await supabase.from('fcm_tokens').select('country, city');
+      const tokens = await fetchAll<any>(() => supabase.from('fcm_tokens').select('country, city'));
       if (tokens) {
         const countryMap = new Map<string, number>();
         tokens.forEach(t => { if (t.country) countryMap.set(t.country, (countryMap.get(t.country) || 0) + 1); });
@@ -67,7 +80,7 @@ export default function AnalyticsPage() {
 
   async function loadListeningStats() {
     try {
-      const { data: sessions } = await supabase.from('listening_sessions').select('*');
+      const sessions = await fetchAll<any>(() => supabase.from('listening_sessions').select('duration_seconds, platform'));
       if (sessions) {
         const totalSessions = sessions.length;
         const totalSeconds = sessions.reduce((sum: number, s: any) => sum + (s.duration_seconds || 0), 0);
@@ -82,9 +95,13 @@ export default function AnalyticsPage() {
 
   async function loadNotifStats() {
     try {
-      const { data: tokens } = await supabase.from('fcm_tokens').select('platform');
-      if (tokens) {
-        setNotifStats({ total: tokens.length, ios: tokens.filter((t: any) => t.platform === 'ios').length, android: tokens.filter((t: any) => t.platform === 'android').length });
+      const [total, ios, android] = await Promise.all([
+        supabase.from('fcm_tokens').select('*', { count: 'exact', head: true }),
+        supabase.from('fcm_tokens').select('*', { count: 'exact', head: true }).eq('platform', 'ios'),
+        supabase.from('fcm_tokens').select('*', { count: 'exact', head: true }).eq('platform', 'android'),
+      ]);
+      if (!total.error) {
+        setNotifStats({ total: total.count || 0, ios: ios.count || 0, android: android.count || 0 });
       }
     } catch (e) { console.error(e); }
   }

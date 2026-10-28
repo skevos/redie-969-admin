@@ -31,27 +31,46 @@ export default function UsersPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
-    // Check if owner
-    const savedUser = localStorage.getItem("dashboard_user");
-    if (savedUser) {
-      const user = JSON.parse(savedUser);
-      if (user.role !== 'owner') {
+    // Check if owner (UX only — the server enforces it on /api/admin/users)
+    (async () => {
+      let user: any = null;
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+        if (res.ok) user = (await res.json())?.user || null;
+      } catch {}
+      if (!user) {
+        try { user = JSON.parse(localStorage.getItem("dashboard_user") || 'null'); } catch {}
+      } else {
+        try { localStorage.setItem("dashboard_user", JSON.stringify(user)); } catch {}
+      }
+      if (!user || user.role !== 'owner') {
         window.location.href = '/';
         return;
       }
       setCurrentUser(user);
-    } else {
-      window.location.href = '/';
-      return;
-    }
-    loadData();
+      loadData();
+    })();
   }, []);
 
+  async function api(method: string, body?: any) {
+    const res = await fetch('/api/admin/users', {
+      method,
+      credentials: 'same-origin',
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error || 'Σφάλμα');
+    return data;
+  }
+
   async function loadData() {
-    const { data: usersData } = await supabase
-      .from('dashboard_users')
-      .select('*')
-      .order('created_at', { ascending: false });
+    let usersData: DashboardUser[] = [];
+    try {
+      usersData = (await api('GET'))?.users || [];
+    } catch (e: any) {
+      console.error('Users load error:', e?.message);
+    }
     
     const { data: producersData } = await supabase
       .from('producers')
@@ -76,23 +95,30 @@ export default function UsersPage() {
       };
       
       if (formData.password) {
-        updateData.password_hash = formData.password;
+        updateData.password = formData.password;
       }
 
-      await supabase
-        .from('dashboard_users')
-        .update(updateData)
-        .eq('id', editUser.id);
+      try {
+        await api('PATCH', { id: editUser.id, ...updateData });
+      } catch (err: any) {
+        alert('Σφάλμα: ' + err.message);
+        return;
+      }
     } else {
       // Create
-      await supabase.from('dashboard_users').insert({
-        username: formData.username.toLowerCase().trim(),
-        password_hash: formData.password,
-        display_name: formData.display_name,
-        role: formData.role,
-        producer_id: formData.role === 'producer' ? formData.producer_id || null : null,
-        is_active: formData.is_active
-      });
+      try {
+        await api('POST', {
+          username: formData.username.toLowerCase().trim(),
+          password: formData.password,
+          display_name: formData.display_name,
+          role: formData.role,
+          producer_id: formData.role === 'producer' ? formData.producer_id || null : null,
+          is_active: formData.is_active
+        });
+      } catch (err: any) {
+        alert('Σφάλμα: ' + err.message);
+        return;
+      }
     }
 
     setShowModal(false);
@@ -115,10 +141,11 @@ export default function UsersPage() {
   }
 
   async function toggleActive(user: DashboardUser) {
-    await supabase
-      .from('dashboard_users')
-      .update({ is_active: !user.is_active })
-      .eq('id', user.id);
+    try {
+      await api('PATCH', { id: user.id, is_active: !user.is_active });
+    } catch (err: any) {
+      alert('Σφάλμα: ' + err.message);
+    }
     loadData();
   }
 

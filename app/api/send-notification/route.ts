@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ADMIN_COOKIE, getSessionSecret, safeEqual, verifySessionToken } from '../../lib/session';
+
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
+  // Defensive auth (the proxy also enforces this): admin cookie or internal secret header.
+  const secret = getSessionSecret();
+  if (secret) {
+    const session = await verifySessionToken(request.cookies.get(ADMIN_COOKIE)?.value);
+    const internalOk = safeEqual(request.headers.get('x-internal-secret'), secret);
+    if (!(session && session.kind === 'admin') && !internalOk) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  }
   try {
     const { title, body, token, tokens } = await request.json();
 
@@ -14,9 +26,13 @@ export async function POST(request: NextRequest) {
 
     const jwt = await createJWT(clientEmail, privateKey);
     const accessToken = await getAccessToken(jwt);
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Failed to obtain FCM access token' }, { status: 500 });
+    }
 
     const tokenList = tokens || (token ? [token] : []);
-    const results = [];
+    const results: any[] = [];
+    const invalidTokens: string[] = [];
     const seenTokens = new Set();
 
     for (const t of tokenList) {
@@ -40,7 +56,7 @@ export async function POST(request: NextRequest) {
                   priority: 'high',
                   notification: {
                     sound: 'default',
-                    channelId: 'redie969_channel'
+                    channelId: 'redie969_notifications'
                   }
                 },
                 apns: {
@@ -62,6 +78,7 @@ export async function POST(request: NextRequest) {
         );
 
         const result = await response.json();
+        if (!response.ok && isInvalidTokenError(result)) invalidTokens.push(t);
         results.push({ token: t.substring(0, 20) + '...', success: response.ok, result });
       } catch (e) {
         results.push({ token: t.substring(0, 20) + '...', success: false, error: String(e) });
@@ -72,12 +89,28 @@ export async function POST(request: NextRequest) {
       sent: results.filter(r => r.success).length,
       failed: results.filter(r => !r.success).length,
       total: results.length,
+      invalidTokens,
       results 
     });
   } catch (error) {
     console.error('Error:', error);
     return NextResponse.json({ error: 'Failed to send notification' }, { status: 500 });
   }
+}
+
+function isInvalidTokenError(result: any) {
+  const err = result?.error;
+  if (!err) return false;
+  if (err.status === 'NOT_FOUND') return true;
+  const details = Array.isArray(err.details) ? err.details : [];
+  if (details.some((d: any) => d?.errorCode === 'UNREGISTERED')) return true;
+  // INVALID_ARGUMENT can also mean a bad payload; only treat it as a dead token when the message is about the token
+  const isInvalidArg = err.status === 'INVALID_ARGUMENT' || details.some((d: any) => d?.errorCode === 'INVALID_ARGUMENT');
+  return isInvalidArg && /registration token|token/i.test(String(err.message || ''));
+}
+
+function base64url(str: string) {
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
 async function createJWT(clientEmail: string, privateKey: string) {
@@ -92,8 +125,8 @@ async function createJWT(clientEmail: string, privateKey: string) {
   };
 
   const encoder = new TextEncoder();
-  const headerB64 = btoa(JSON.stringify(header)).replace(/=/g, '');
-  const payloadB64 = btoa(JSON.stringify(payload)).replace(/=/g, '');
+  const headerB64 = base64url(JSON.stringify(header));
+  const payloadB64 = base64url(JSON.stringify(payload));
   const signatureInput = `${headerB64}.${payloadB64}`;
 
   const key = await crypto.subtle.importKey(
@@ -122,8 +155,8 @@ async function getAccessToken(jwt: string) {
   const response = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${encodeURIComponent(jwt)}`,
   });
-  const data = await response.json();
-  return data.access_token;
+  const data = await response.json().catch(() => null);
+  return data?.access_token as string | undefined;
 }

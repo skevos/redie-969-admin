@@ -67,11 +67,15 @@ export default function SplashPage() {
     }
 
     const { data } = supabase.storage.from('splash').getPublicUrl(fileName);
-    setConfig({ ...config, logo_url: data.publicUrl });
+    setConfig(prev => ({ ...prev, logo_url: data.publicUrl }));
     setUploading(false);
   }
 
   async function saveField(field: string, value: any) {
+    if (field === 'background_color' && !/^#[0-9a-fA-F]{6}$/.test(String(value || ''))) {
+      alert('Μορφή χρώματος: #RRGGBB');
+      return;
+    }
     setSavingField(field);
     const { error } = await supabase
       .from('splash_config')

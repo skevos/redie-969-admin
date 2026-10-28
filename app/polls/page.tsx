@@ -84,14 +84,16 @@ export default function PollsPage() {
   async function savePoll() {
     setSaving(true);
     const { countdown_enabled, countdown_minutes, ...pollData } = form as any;
+    let newPollId: any = null;
     if (editingPoll) {
       await supabase.from("polls").update(pollData).eq("id", editingPoll.id);
     } else {
-      await supabase.from("polls").insert(pollData);
+      const { data: inserted } = await supabase.from("polls").insert(pollData).select("id").single();
+      newPollId = inserted?.id ?? null;
     }
     // If countdown enabled and poll will be active, set countdown_end
     if (countdown_enabled && countdown_minutes > 0) {
-      const targetId = editingPoll?.id;
+      const targetId = editingPoll?.id ?? newPollId;
       if (targetId) {
         const countdown_end = new Date(Date.now() + countdown_minutes * 60000).toISOString();
         await supabase.from("polls").update({ countdown_end }).eq("id", targetId);
@@ -111,12 +113,16 @@ export default function PollsPage() {
   async function toggleActive(poll: any) {
     if (!poll.is_active) {
       // Απενεργοποίηση όλων των άλλων
-      await supabase.from("polls").update({ is_active: false }).neq("id", poll.id);
+      await supabase.from("polls").update({ is_active: false, countdown_end: null }).neq("id", poll.id);
       const minutes = countdownInput[poll.id] || 0;
+      const existingEndValid =
+        !!poll.countdown_end && new Date(poll.countdown_end).getTime() > Date.now();
       const countdown_end =
         minutes > 0
           ? new Date(Date.now() + minutes * 60000).toISOString()
-          : null;
+          : existingEndValid
+            ? poll.countdown_end
+            : null;
       await supabase
         .from("polls")
         .update({ is_active: true, countdown_end })
@@ -511,7 +517,7 @@ export default function PollsPage() {
                             </p>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            {!poll.countdown_end && (
+                            {(!poll.countdown_end || countdownExpired) && (
                               <input
                                 type="number"
                                 min="1"

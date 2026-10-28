@@ -15,29 +15,58 @@ export default function ProducerChatPage() {
   const [listenerCount, setListenerCount] = useState(0);
   const [listenerBase, setListenerBase] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const globalChannelsRef = useRef<any[]>([]);
+  const roomChannelRef = useRef<any>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('producer_session');
-    if (saved) checkSession(JSON.parse(saved));
+    try { localStorage.removeItem('producer_session'); } catch {} // legacy: full row used to be stored here
+    checkSession();
+    return () => { removeAllChannels(); };
   }, []);
 
-  async function checkSession(p: any) {
-    const { data } = await supabase.from('producers').select().eq('id', p.id).eq('is_active', true).maybeSingle();
-    if (data) { setProducer(data); loadChatConfig(); }
-    else localStorage.removeItem('producer_session');
+  function removeRoomChannel() {
+    if (roomChannelRef.current) {
+      supabase.removeChannel(roomChannelRef.current);
+      roomChannelRef.current = null;
+    }
+  }
+
+  function removeAllChannels() {
+    globalChannelsRef.current.forEach(ch => supabase.removeChannel(ch));
+    globalChannelsRef.current = [];
+    removeRoomChannel();
+  }
+
+  async function checkSession() {
+    try {
+      const res = await fetch('/api/auth/producer-me', { credentials: 'same-origin' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.id) { setProducer(data); loadChatConfig(); }
+    } catch {}
   }
 
   async function handleLogin() {
     setLoading(true); setError('');
-    const { data } = await supabase.from('producers').select().eq('username', username.trim()).eq('password', password).eq('is_active', true).maybeSingle();
-    if (data) { setProducer(data); localStorage.setItem('producer_session', JSON.stringify(data)); loadChatConfig(); }
+    let data: any = null;
+    try {
+      const res = await fetch('/api/auth/producer-login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+      if (res.ok) data = await res.json();
+    } catch {}
+    if (data && data.id) { setProducer(data); setPassword(''); loadChatConfig(); }
     else setError('Λάθος username ή password');
     setLoading(false);
   }
 
-  function handleLogout() { setProducer(null); localStorage.removeItem('producer_session'); setMessages([]); setUsername(''); setPassword(''); }
+  function handleLogout() { removeAllChannels(); setProducer(null); fetch('/api/auth/logout?kind=producer', { method: 'POST', credentials: 'same-origin' }).catch(() => {}); setMessages([]); setUsername(''); setPassword(''); }
 
   async function loadChatConfig() {
+    removeAllChannels();
     const { data } = await supabase.from('chat_config').select().eq('id', 1).single();
     if (data) { setChatOpen(data.is_chat_open); setRoomId(data.active_room_id); if (data.is_chat_open && data.active_room_id) { loadMessages(data.active_room_id); subscribeToMessages(data.active_room_id); } }
     
@@ -45,32 +74,38 @@ export default function ProducerChatPage() {
     loadListeners();
     
     // Subscribe to listener changes
-    supabase.channel('listeners').on('postgres_changes', { event: '*', schema: 'public', table: 'active_listeners' }, () => {
+    const listenersCh = supabase.channel('listeners').on('postgres_changes', { event: '*', schema: 'public', table: 'active_listeners' }, () => {
       loadListeners();
     }).subscribe();
+    globalChannelsRef.current.push(listenersCh);
     
     // Load settings for base count
     loadSettings();
     
     // Subscribe to settings changes
-    supabase.channel('settings_changes').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'settings', filter: 'id=eq.1' }, () => {
+    const settingsCh = supabase.channel('settings_changes').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'settings', filter: 'id=eq.1' }, () => {
       loadSettings();
     }).subscribe();
+    globalChannelsRef.current.push(settingsCh);
     
     // Subscribe to chat config changes
-    supabase.channel('chat_config_changes').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_config', filter: 'id=eq.1' }, (payload) => {
+    const configCh = supabase.channel('chat_config_changes').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_config', filter: 'id=eq.1' }, (payload) => {
       const newData = payload.new as any;
       setChatOpen(newData.is_chat_open);
       setRoomId(newData.active_room_id);
       if (newData.is_chat_open && newData.active_room_id) {
         loadMessages(newData.active_room_id);
+        subscribeToMessages(newData.active_room_id);
+      } else {
+        removeRoomChannel();
       }
     }).subscribe();
+    globalChannelsRef.current.push(configCh);
   }
 
   async function loadListeners() {
-    const { data } = await supabase.from('active_listeners').select('id');
-    setListenerCount(data?.length || 0);
+    const { count } = await supabase.from('active_listeners').select('*', { count: 'exact', head: true });
+    setListenerCount(count || 0);
   }
 
   async function loadSettings() {
@@ -79,13 +114,14 @@ export default function ProducerChatPage() {
   }
 
   async function loadMessages(room: string) {
-    const { data } = await supabase.from('chat_messages').select('*').eq('room_id', room).order('created_at', { ascending: true }).limit(100);
-    if (data) setMessages(data);
+    const { data } = await supabase.from('chat_messages').select('*').eq('room_id', room).order('created_at', { ascending: false }).limit(100);
+    if (data) setMessages(data.reverse());
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   }
 
   function subscribeToMessages(room: string) {
-    supabase.channel('chat_' + room).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: 'room_id=eq.' + room }, (payload) => {
+    removeRoomChannel();
+    roomChannelRef.current = supabase.channel('chat_' + room).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: 'room_id=eq.' + room }, (payload) => {
       setMessages(prev => [...prev, payload.new]);
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     }).subscribe();
@@ -147,7 +183,7 @@ export default function ProducerChatPage() {
         </span>
       </div>
       <div style={{ height: 'calc(100vh - 200px)', overflowY: 'auto', padding: 24 }}>
-        {messages.length === 0 ? <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}><span style={{ fontSize: 64 }}>💬</span><p style={{ marginTop: 16, fontSize: 18 }}>Δεν υπάρχουν μηνύματα</p></div> : messages.map((msg, i) => (
+        {messages.filter(m => !m.is_hidden).length === 0 ? <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}><span style={{ fontSize: 64 }}>💬</span><p style={{ marginTop: 16, fontSize: 18 }}>Δεν υπάρχουν μηνύματα</p></div> : messages.filter(m => !m.is_hidden).map((msg, i) => (
           <div key={i} style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
             {msg.producer_photo ? (
               <img src={msg.producer_photo} alt="" style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />

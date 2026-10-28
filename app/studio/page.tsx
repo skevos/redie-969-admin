@@ -4,6 +4,21 @@ import Link from "next/link";
 import Sidebar from "../components/Sidebar";
 import { supabase } from "../lib/supabase";
 
+const CHUNK_SIZE = 300;
+
+// Fetch all rows past the 1000-row PostgREST cap
+async function fetchAll<T = any>(buildQuery: () => any): Promise<{ data: T[]; error: any }> {
+  const pageSize = 1000;
+  const all: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+    if (error) return { data: all, error };
+    all.push(...((data || []) as T[]));
+    if (!data || data.length < pageSize) break;
+  }
+  return { data: all, error: null };
+}
+
 export default function StudioChatPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
@@ -16,6 +31,8 @@ export default function StudioChatPage() {
   const [replyText, setReplyText] = useState('');
   const [sendingNotification, setSendingNotification] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const toggleBusyRef = useRef(false);
+  const replyBusyRef = useRef(false);
 
   useEffect(() => { 
     loadChat(); 
@@ -90,18 +107,33 @@ export default function StudioChatPage() {
     setSendingNotification(true);
     
     try {
-      const { data: tokens } = await supabase.from('fcm_tokens').select('token');
+      const { data: tokens } = await fetchAll<{ token: string }>(() => supabase.from('fcm_tokens').select('token'));
       if (tokens && tokens.length > 0) {
-        // Send all tokens in one request
-        await fetch('/api/send-notification', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            tokens: tokens.map(t => t.token), 
-            title, 
-            body 
-          })
-        });
+        const allTokens = tokens.map(t => t.token);
+        const invalidTokens: string[] = [];
+        // Send in chunks of CHUNK_SIZE tokens
+        for (let i = 0; i < allTokens.length; i += CHUNK_SIZE) {
+          try {
+            const res = await fetch('/api/send-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                tokens: allTokens.slice(i, i + CHUNK_SIZE), 
+                title, 
+                body 
+              })
+            });
+            const isJson = (res.headers.get('content-type') || '').includes('application/json');
+            const data = isJson ? await res.json() : null;
+            if (data && Array.isArray(data.invalidTokens)) invalidTokens.push(...data.invalidTokens);
+          } catch (e) {
+            console.log('Push chunk error:', e);
+          }
+        }
+        // Remove dead tokens (ignore errors)
+        if (invalidTokens.length > 0) {
+          try { await supabase.from('fcm_tokens').delete().in('token', invalidTokens); } catch (e) { console.log(e); }
+        }
       }
     } catch (e) { 
       console.log('Push error:', e); 
@@ -142,11 +174,12 @@ export default function StudioChatPage() {
   async function closeChat() {
     // Archive messages before closing
     if (roomId && messages.length > 0) {
+      const { data: roomRow } = await supabase.from('chat_rooms').select('show_name, title').eq('id', roomId).maybeSingle();
       await supabase.from('chat_archives').insert({
         room_id: roomId,
         messages: messages,
         total_messages: messages.length,
-        show_name: nextShow?.title || null
+        show_name: roomRow?.show_name || roomRow?.title || null
       });
     }
     
@@ -171,10 +204,16 @@ export default function StudioChatPage() {
   }
 
   async function toggleChat() {
-    if (chatOpen) {
-      closeChat();
-    } else {
-      openChat();
+    if (toggleBusyRef.current) return;
+    toggleBusyRef.current = true;
+    try {
+      if (chatOpen) {
+        await closeChat();
+      } else {
+        await openChat();
+      }
+    } finally {
+      toggleBusyRef.current = false;
     }
   }
 
@@ -185,7 +224,8 @@ export default function StudioChatPage() {
   }
 
   async function deleteMessage(id: string) {
-    await supabase.from('chat_messages').delete().eq('id', id);
+    const { error } = await supabase.from('chat_messages').delete().eq('id', id);
+    if (error) { alert(error.message); return; }
     setMessages(prev => prev.filter(m => m.id !== id));
   }
 
@@ -213,15 +253,21 @@ export default function StudioChatPage() {
 
   async function sendReply() {
     if (!replyText.trim() || !roomId) return;
+    if (replyBusyRef.current) return;
+    replyBusyRef.current = true;
     
-    await supabase.from('chat_messages').insert({
-      room_id: roomId,
-      message: replyText,
-      nickname_snapshot: 'REDIE 969',
-      role_snapshot: 'admin'
-    });
-    
-    setReplyText('');
+    try {
+      const { error } = await supabase.from('chat_messages').insert({
+        room_id: roomId,
+        message: replyText,
+        nickname_snapshot: 'REDIE 969',
+        role_snapshot: 'admin'
+      });
+      if (error) { alert(error.message); return; }
+      setReplyText('');
+    } finally {
+      replyBusyRef.current = false;
+    }
   }
 
   function formatTime(dateStr: string) {

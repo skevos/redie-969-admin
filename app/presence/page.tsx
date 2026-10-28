@@ -46,11 +46,12 @@ export default function PresencePage() {
         .limit(20);
       setMoments(momentsData || []);
 
-      const today = new Date().toISOString().split("T")[0];
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
       const [{ count: profiles }, { count: sessions }] = await Promise.all([
         supabase.from("presence_profile").select("*", { count: "exact", head: true }),
         supabase.from("presence_sessions").select("*", { count: "exact", head: true })
-          .gte("started_at", `${today}T00:00:00`)
+          .gte("started_at", todayStart.toISOString())
       ]);
       setStats({ profiles: profiles || 0, sessions: sessions || 0, pushes: 0 });
     } catch (e) {
@@ -64,15 +65,19 @@ export default function PresencePage() {
     e.preventDefault();
     setCreating(true);
     try {
-      await supabase.from("presence_moments").insert({
+      const { error } = await supabase.from("presence_moments").insert({
         title: formData.title,
         description: formData.description || null,
-        start_at: formData.start_at,
-        end_at: formData.end_at,
+        start_at: new Date(formData.start_at).toISOString(),
+        end_at: new Date(formData.end_at).toISOString(),
         sponsor_name: formData.sponsor_name || null,
         max_claims: formData.max_claims ? parseInt(formData.max_claims) : null,
         is_active: false
       });
+      if (error) {
+        alert("Σφάλμα: " + error.message);
+        return;
+      }
       setShowForm(false);
       setFormData({ title: "", description: "", start_at: "", end_at: "", sponsor_name: "", max_claims: "" });
       loadData();
@@ -87,7 +92,8 @@ export default function PresencePage() {
     if (!m.is_active) {
       await supabase.from("presence_moments").update({ is_active: false }).neq("id", m.id);
     }
-    await supabase.from("presence_moments").update({ is_active: !m.is_active }).eq("id", m.id);
+    const { error } = await supabase.from("presence_moments").update({ is_active: !m.is_active }).eq("id", m.id);
+    if (error) alert("Σφάλμα: " + error.message);
     loadData();
   };
 

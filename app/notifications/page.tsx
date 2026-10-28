@@ -16,6 +16,21 @@ const NOTIFICATION_TYPES = [
   { value: 'news', label: '📰 Νέα', color: '#3b82f6' },
 ];
 
+// Fetch all rows past the 1000-row PostgREST cap
+async function fetchAll<T = any>(buildQuery: () => any): Promise<{ data: T[]; error: any }> {
+  const pageSize = 1000;
+  const all: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+    if (error) return { data: all, error };
+    all.push(...((data || []) as T[]));
+    if (!data || data.length < pageSize) break;
+  }
+  return { data: all, error: null };
+}
+
+const CHUNK_SIZE = 300;
+
 export default function NotificationsPage() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -52,13 +67,17 @@ export default function NotificationsPage() {
   }
 
   async function loadLocations() {
-    const { data } = await supabase.from('fcm_tokens').select('country, city');
+    const { data } = await fetchAll<{ country: string | null; city: string | null }>(() => supabase.from('fcm_tokens').select('country, city'));
     if (data) {
       const locationMap = new Map<string, number>();
       data.forEach(d => {
         if (d.country) {
-          const key = d.city ? `${d.country}|${d.city}` : d.country;
-          locationMap.set(key, (locationMap.get(key) || 0) + 1);
+          // Country option targets every token of that country, so count them all under the country key
+          locationMap.set(d.country, (locationMap.get(d.country) || 0) + 1);
+          if (d.city) {
+            const key = `${d.country}|${d.city}`;
+            locationMap.set(key, (locationMap.get(key) || 0) + 1);
+          }
         }
       });
       const locs = Array.from(locationMap.entries()).map(([key, count]) => {
@@ -79,23 +98,16 @@ export default function NotificationsPage() {
     setResult(null);
 
     try {
-      // 1. Save to app_notifications table
-      await supabase.from('app_notifications').insert({
-        title,
-        body,
-        type
+      // 1. Get FCM tokens (filtered by location if needed), paged past the 1000-row cap
+      const { data: tokens, error: tokensError } = await fetchAll<{ token: string }>(() => {
+        let query = supabase.from('fcm_tokens').select('token');
+        if (targetLocation !== 'all') {
+          const [country, city] = targetLocation.split('|');
+          query = query.eq('country', country);
+          if (city) query = query.eq('city', city);
+        }
+        return query;
       });
-
-      // 2. Get FCM tokens (filtered by location if needed)
-      let query = supabase.from('fcm_tokens').select('token');
-      
-      if (targetLocation !== 'all') {
-        const [country, city] = targetLocation.split('|');
-        query = query.eq('country', country);
-        if (city) query = query.eq('city', city);
-      }
-      
-      const { data: tokens, error: tokensError } = await query;
 
       if (tokensError) throw tokensError;
 
@@ -117,25 +129,62 @@ export default function NotificationsPage() {
       const emoji = typeEmojis[type] || '📢';
       const titleWithEmoji = title.startsWith(emoji) ? title : `${emoji} ${title}`;
       
-      const res = await fetch('/api/send-notification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          tokens: tokens.map(t => t.token), 
-          title: titleWithEmoji, 
-          body 
-        })
-      });
-      
-      const data = await res.json();
+      // 2. Send in chunks of CHUNK_SIZE tokens
+      const allTokens = tokens.map(t => t.token);
+      let sent = 0;
+      let failed = 0;
+      let anyChunkOk = false;
+      let lastError = '';
+      const invalidTokens: string[] = [];
+      for (let i = 0; i < allTokens.length; i += CHUNK_SIZE) {
+        const chunk = allTokens.slice(i, i + CHUNK_SIZE);
+        try {
+          const res = await fetch('/api/send-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              tokens: chunk, 
+              title: titleWithEmoji, 
+              body 
+            })
+          });
+          const isJson = (res.headers.get('content-type') || '').includes('application/json');
+          const data = isJson ? await res.json() : null;
+          if (res.ok && data) {
+            anyChunkOk = true;
+            sent += data.sent || 0;
+            failed += data.failed || 0;
+            if (Array.isArray(data.invalidTokens)) invalidTokens.push(...data.invalidTokens);
+          } else {
+            failed += chunk.length;
+            lastError = (data && data.error) || 'Σφάλμα αποστολής!';
+          }
+        } catch (e: any) {
+          failed += chunk.length;
+          lastError = e?.message || 'Σφάλμα αποστολής!';
+        }
+      }
 
-      if (res.ok) {
+      // 3. Remove dead tokens (ignore errors)
+      if (invalidTokens.length > 0) {
+        try { await supabase.from('fcm_tokens').delete().in('token', invalidTokens); } catch (e) { console.log(e); }
+        loadTokenCount();
+        loadLocations();
+      }
+
+      if (anyChunkOk) {
+        // 4. Save to app_notifications table only after a successful send
+        await supabase.from('app_notifications').insert({
+          title,
+          body,
+          type
+        });
         setResult({
           success: true,
-          message: `✅ Στάλθηκε σε ${data.sent} συσκευές${data.failed > 0 ? ` (${data.failed} απέτυχαν)` : ''}`
+          message: `✅ Στάλθηκε σε ${sent} συσκευές${failed > 0 ? ` (${failed} απέτυχαν)` : ''}`
         });
       } else {
-        setResult({ success: false, message: data.error || 'Σφάλμα αποστολής!' });
+        setResult({ success: false, message: lastError || 'Σφάλμα αποστολής!' });
       }
 
       setTitle('');

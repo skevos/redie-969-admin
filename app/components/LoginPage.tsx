@@ -1,9 +1,8 @@
 "use client";
 import { useState } from "react";
-import { login } from "../lib/auth";
 
 interface LoginPageProps {
-  onLogin: (token: string) => void;
+  onLogin: () => void;
 }
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
@@ -17,14 +16,23 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     setError("");
     setLoading(true);
 
-    const result = await login(username, password);
-
-    if (result.success && result.token) {
-      localStorage.setItem("dashboard_token", result.token);
-      localStorage.setItem("dashboard_user", JSON.stringify(result.user));
-      onLogin(result.token);
-    } else {
-      setError(result.error || "Σφάλμα σύνδεσης");
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.user) {
+        localStorage.removeItem("dashboard_token");
+        localStorage.setItem("dashboard_user", JSON.stringify(data.user));
+        onLogin();
+      } else {
+        setError(data?.error || "Σφάλμα σύνδεσης");
+      }
+    } catch {
+      setError("Σφάλμα σύνδεσης");
     }
 
     setLoading(false);

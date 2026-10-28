@@ -3,6 +3,19 @@ import { useState, useEffect } from "react";
 import Sidebar from "../components/Sidebar";
 import { supabase } from "../lib/supabase";
 
+// Fetch all rows past the 1000-row PostgREST cap
+async function fetchAll<T = any>(buildQuery: () => any): Promise<T[] | null> {
+  const pageSize = 1000;
+  const all: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+    if (error) return from === 0 ? null : all;
+    all.push(...((data || []) as T[]));
+    if (!data || data.length < pageSize) break;
+  }
+  return all;
+}
+
 interface CountryStats {
   country: string;
   count: number;
@@ -24,23 +37,27 @@ export default function GeoAnalyticsPage() {
 
   async function loadStats() {
     try {
-      const { data: devices } = await supabase.from('app_analytics').select('platform');
-      if (devices) {
-        setTotalInstalls(devices.length);
-        setTotalAndroid(devices.filter(d => d.platform === 'android').length);
-        setTotalIos(devices.filter(d => d.platform === 'ios').length);
+      const [all, android, ios] = await Promise.all([
+        supabase.from('app_analytics').select('*', { count: 'exact', head: true }),
+        supabase.from('app_analytics').select('*', { count: 'exact', head: true }).eq('platform', 'android'),
+        supabase.from('app_analytics').select('*', { count: 'exact', head: true }).eq('platform', 'ios'),
+      ]);
+      if (!all.error) {
+        setTotalInstalls(all.count || 0);
+        setTotalAndroid(android.count || 0);
+        setTotalIos(ios.count || 0);
       }
-      const { data: tokens } = await supabase.from('fcm_tokens').select('country, city, region, platform');
+      const tokens = await fetchAll<any>(() => supabase.from('fcm_tokens').select('country, city, region, platform'));
       if (tokens) {
         const countryMap = new Map<string, { count: number; iosCount: number; androidCount: number; cities: Map<string, number> }>();
         let geoCount = 0;
-        tokens.forEach(t => {
+        tokens.forEach((t: any) => {
           if (t.country) {
             geoCount++;
             if (!countryMap.has(t.country)) countryMap.set(t.country, { count: 0, iosCount: 0, androidCount: 0, cities: new Map() });
             const cd = countryMap.get(t.country)!;
             cd.count++;
-            if (t.platform === 'ios') cd.iosCount++; else cd.androidCount++;
+            if (t.platform === 'ios') cd.iosCount++; else if (t.platform === 'android') cd.androidCount++;
             if (t.city) cd.cities.set(t.city, (cd.cities.get(t.city) || 0) + 1);
           }
         });

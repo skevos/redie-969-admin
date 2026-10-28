@@ -15,8 +15,7 @@ interface Producer {
   photo_url: string | null;
   bio: string | null;
   created_at: string;
-  username: string | null;
-  password: string | null;
+  username?: string | null;
   is_admin: boolean;
   is_active: boolean;
   show_1: string | null;
@@ -36,6 +35,7 @@ export default function ProducersPage() {
   const [editing, setEditing] = useState<Producer | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [form, setForm] = useState({ name: '', bio: '', photo_url: '', username: '', password: '', is_admin: false, show_1: '', show_2: '', chat_color: '#9C27B0', chat_icon: 'headphones' });
+  const [knownUsername, setKnownUsername] = useState<string | null | undefined>(undefined); // undefined = not loaded
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [favoriteCounts, setFavoriteCounts] = useState<Record<string, number>>({});
@@ -51,10 +51,37 @@ export default function ProducersPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('producers')
-      .select('*')
+      .select('id, created_at, name, photo_url, bio, is_admin, is_active, show_1, show_2, chat_color, chat_icon')
       .order('name');
-    if (data) setProducers(data);
+    if (data) {
+      // Usernames come from the server (admin session); passwords never leave the server.
+      let usernames: Record<string, string | null> = {};
+      try {
+        const res = await fetch('/api/admin/producers/credentials', { credentials: 'same-origin' });
+        if (res.ok) usernames = (await res.json())?.usernames || {};
+      } catch {}
+      setProducers((data as Producer[]).map(p => ({ ...p, username: usernames[String(p.id)] ?? null })));
+    }
     setLoading(false);
+  }
+
+  async function saveCredentials(id: number, username: string, password: string): Promise<string | null> {
+    const u = username.trim();
+    // Never clear a login just because the current username could not be loaded
+    const sendUsername = knownUsername !== undefined ? u !== (knownUsername || '') : u !== '';
+    if (!sendUsername && !password) return null;
+    try {
+      const res = await fetch('/api/admin/producers/credentials', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...(sendUsername ? { username: u } : {}), ...(password ? { password } : {}) }),
+      });
+      if (!res.ok) return (await res.json().catch(() => null))?.error || 'Σφάλμα αποθήκευσης login';
+      return null;
+    } catch {
+      return 'Σφάλμα αποθήκευσης login';
+    }
   }
 
   async function loadFavoriteCounts() {
@@ -88,12 +115,14 @@ export default function ProducersPage() {
   function openNew() {
     setIsNew(true);
     setEditing(null);
+    setKnownUsername(null);
     setForm({ name: '', bio: '', photo_url: '', username: '', password: '', is_admin: false, show_1: '', show_2: '', chat_color: '#9C27B0', chat_icon: 'headphones' });
   }
 
   function openEdit(producer: Producer) {
     setIsNew(false);
     setEditing(producer);
+    setKnownUsername(undefined);
     setForm({ 
       name: producer.name || '', 
       bio: producer.bio || '', 
@@ -106,6 +135,11 @@ export default function ProducersPage() {
       chat_color: producer.chat_color || '#9C27B0',
       chat_icon: producer.chat_icon || 'headphones'
     });
+    // Fresh username from the server (password is never returned)
+    fetch(`/api/admin/producers/credentials?id=${producer.id}`, { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && 'username' in d) { setKnownUsername(d.username ?? null); setForm(prev => ({ ...prev, username: d.username || '' })); } })
+      .catch(() => {});
   }
 
   function closeModal() {
@@ -133,7 +167,7 @@ export default function ProducersPage() {
     }
 
     const { data } = supabase.storage.from('producers').getPublicUrl(fileName);
-    setForm({ ...form, photo_url: data.publicUrl });
+    setForm(prev => ({ ...prev, photo_url: data.publicUrl }));
     setUploading(false);
   }
 
@@ -146,36 +180,38 @@ export default function ProducersPage() {
     setSaving(true);
 
     if (isNew) {
-      const { error } = await supabase.from('producers').insert({
+      const { data: created, error } = await supabase.from('producers').insert({
         name: form.name,
         bio: form.bio || null,
         photo_url: form.photo_url || null,
-        username: form.username || null,
-        password: form.password || null,
         is_admin: form.is_admin,
         show_1: form.show_1 || null,
         show_2: form.show_2 || null,
         chat_color: form.chat_color || '#9C27B0',
         chat_icon: form.chat_icon || 'headphones',
-      });
-      if (error) alert('Σφάλμα: ' + error.message);
+      }).select('id').single();
+      if (error) { alert('Σφάλμα: ' + error.message); setSaving(false); return; }
+      if (created && (form.username.trim() || form.password)) {
+        const credErr = await saveCredentials(created.id, form.username, form.password);
+        if (credErr) { alert('Σφάλμα: ' + credErr); setSaving(false); return; }
+      }
     } else if (editing) {
       const updateData: any = {
         name: form.name,
         bio: form.bio || null,
         photo_url: form.photo_url || null,
-        username: form.username || null,
         is_admin: form.is_admin,
         show_1: form.show_1 || null,
         show_2: form.show_2 || null,
         chat_color: form.chat_color || '#9C27B0',
         chat_icon: form.chat_icon || 'headphones',
       };
-      if (form.password) updateData.password = form.password;
       const { error } = await supabase.from('producers')
         .update(updateData)
         .eq('id', editing.id);
-      if (error) alert('Σφάλμα: ' + error.message);
+      if (error) { alert('Σφάλμα: ' + error.message); setSaving(false); return; }
+      const credErr = await saveCredentials(editing.id, form.username, form.password);
+      if (credErr) { alert('Σφάλμα: ' + credErr); setSaving(false); return; }
     }
 
     setSaving(false);
@@ -478,7 +514,7 @@ export default function ProducersPage() {
               <div style={{ marginBottom: 12 }}>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password</label>
                 <input
-                  type="text"
+                  type="password"
                   value={form.password}
                   onChange={e => setForm({ ...form, password: e.target.value })}
                   placeholder={editing ? "Κενό = χωρίς αλλαγή" : "Password"}

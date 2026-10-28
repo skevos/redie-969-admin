@@ -15,17 +15,18 @@ export default function Dashboard() {
     loadNextShow();
     
     // Subscribe to chat config changes
-    supabase.channel('dashboard_chat').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_config', filter: 'id=eq.1' }, (payload) => {
+    const ch = supabase.channel('dashboard_chat').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_config', filter: 'id=eq.1' }, (payload) => {
       setChatOpen((payload.new as any).is_chat_open);
     }).subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, []);
 
   async function loadStats() {
     const [shows, producers, messages, listeners, config] = await Promise.all([
-      supabase.from('shows').select('id', { count: 'exact' }),
-      supabase.from('producers').select('id', { count: 'exact' }).eq('is_active', true),
-      supabase.from('chat_messages').select('id', { count: 'exact' }),
-      supabase.from('active_listeners').select('id', { count: 'exact' }),
+      supabase.from('shows').select('id', { count: 'exact', head: true }),
+      supabase.from('producers').select('id', { count: 'exact', head: true }).eq('is_active', true),
+      supabase.from('chat_messages').select('id', { count: 'exact', head: true }),
+      supabase.from('active_listeners').select('id', { count: 'exact', head: true }),
       supabase.from('chat_config').select('is_chat_open').eq('id', 1).single()
     ]);
     

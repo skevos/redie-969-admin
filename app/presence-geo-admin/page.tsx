@@ -40,6 +40,7 @@ export default function PresenceGeoAdminPage() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [newCity, setNewCity] = useState({ country_code: 'GR', country: 'Ελλάδα', city: '', boost_listeners: 0 });
+  const [drafts, setDrafts] = useState<{ [id: string]: string }>({});
 
   useEffect(() => {
     loadBoosts();
@@ -66,6 +67,15 @@ export default function PresenceGeoAdminPage() {
       .update({ boost_listeners, updated_at: new Date().toISOString() })
       .eq('id', id);
     loadBoosts();
+  };
+
+  // Write the typed value only on blur / Enter (not on every keystroke)
+  const commitDraft = (b: BoostItem) => {
+    const v = drafts[b.id];
+    if (v === undefined) return;
+    setDrafts(prev => { const next = { ...prev }; delete next[b.id]; return next; });
+    const value = Math.max(0, parseInt(v) || 0);
+    if (value !== b.boost_listeners) updateBoost(b.id, value);
   };
 
   const toggleActive = async (id: string, is_active: boolean) => {
@@ -161,8 +171,10 @@ export default function PresenceGeoAdminPage() {
                     >-</button>
                     <input
                       type="number"
-                      value={b.boost_listeners}
-                      onChange={(e) => updateBoost(b.id, parseInt(e.target.value) || 0)}
+                      value={drafts[b.id] ?? b.boost_listeners}
+                      onChange={(e) => { const v = e.target.value; setDrafts(prev => ({ ...prev, [b.id]: v })); }}
+                      onBlur={() => commitDraft(b)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                       style={{ width: 60, padding: "8px", background: "#0f172a", border: "1px solid #334155", borderRadius: 8, color: "#f59e0b", textAlign: "center", fontWeight: 700 }}
                     />
                     <button 

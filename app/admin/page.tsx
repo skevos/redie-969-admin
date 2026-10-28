@@ -35,11 +35,10 @@ export default function SchedulePage() {
   }
 
   async function saveShow() {
-    if (editingShow) {
-      await supabase.from('shows').update(form).eq('id', editingShow.id);
-    } else {
-      await supabase.from('shows').insert(form);
-    }
+    const { error } = editingShow
+      ? await supabase.from('shows').update(form).eq('id', editingShow.id)
+      : await supabase.from('shows').insert(form);
+    if (error) { alert(error.message); return; }
     setShowModal(false);
     setEditingShow(null);
     setForm({ title: '', producer_name: '', day_of_week: 0, start_time: '09:00', end_time: '10:00', sponsor_name: '', sponsor_active: false, sponsor_url: '', sponsor_url_active: false });
@@ -48,17 +47,20 @@ export default function SchedulePage() {
 
   async function deleteShow(id: number) {
     if (confirm('Διαγραφή εκπομπής;')) {
-      await supabase.from('shows').delete().eq('id', id);
+      const { error } = await supabase.from('shows').delete().eq('id', id);
+      if (error) alert(error.message);
       loadShows();
     }
   }
 
   async function toggleLive(show: any) {
     if (show.is_live) {
-      await supabase.from('shows').update({ is_live: false }).eq('id', show.id);
+      const { error } = await supabase.from('shows').update({ is_live: false }).eq('id', show.id);
+      if (error) alert(error.message);
     } else {
       await supabase.from('shows').update({ is_live: false }).neq('id', show.id);
-      await supabase.from('shows').update({ is_live: true }).eq('id', show.id);
+      const { error } = await supabase.from('shows').update({ is_live: true }).eq('id', show.id);
+      if (error) alert(error.message);
     }
     loadShows();
   }

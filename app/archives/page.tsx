@@ -11,7 +11,7 @@ export default function ArchivesPage() {
   useEffect(() => { loadArchives(); }, []);
 
   async function loadArchives() {
-    const { data } = await supabase.from('chat_archives').select('*').order('archived_at', { ascending: false });
+    const { data } = await supabase.from('chat_archives').select('*').order('archived_at', { ascending: false }).limit(50);
     setArchives(data || []);
     setLoading(false);
   }

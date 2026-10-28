@@ -74,54 +74,80 @@ export default function ContentPage() {
     } catch (e) { console.log(e); }
   }
 
-  async function saveNowPlaying() {
-    setSaving('nowplaying');
-    await supabase.from('settings').update({ now_playing: nowPlaying, updated_at: new Date().toISOString() }).eq('id', 1);
-    setTimeout(() => setSaving(''), 1500);
+  // Only allow empty or http(s) URLs
+  function isValidUrl(v: string) {
+    return !v || /^https?:\/\//i.test(v.trim());
   }
 
-  async function saveAnnouncement() {
-    setSaving('announcement');
-    await supabase.from('settings').update({ 
-      announcement, announcement_active: announcementActive, announcement_url: announcementUrl, announcement_url_active: announcementUrlActive,
-      updated_at: new Date().toISOString() 
-    }).eq('id', 1);
-    setTimeout(() => setSaving(''), 1500);
+  function checkUrls(...urls: string[]) {
+    if (urls.every(isValidUrl)) return true;
+    alert('Μη έγκυρο URL: πρέπει να ξεκινά με http:// ή https://');
+    return false;
   }
 
-  async function saveListenerCount() {
-    setSaving('listener');
-    await supabase.from('settings').update({ show_listener_count: showListenerCount, listener_count_base: listenerCountBase, updated_at: new Date().toISOString() }).eq('id', 1);
-    setTimeout(() => setSaving(''), 1500);
-  }
-
-  async function saveChatSponsor() {
-    setSaving('chatsponsor');
-    const { data } = await supabase.from('chat_sponsored_messages').select('id').limit(1).single();
-    if (data) {
-      await supabase.from('chat_sponsored_messages').update({ message: chatSponsorMessage, sponsor_name: chatSponsorName, is_active: chatSponsorActive, sponsor_url: chatSponsorUrl, sponsor_url_active: chatSponsorUrlActive }).eq('id', data.id);
-    } else {
-      await supabase.from('chat_sponsored_messages').insert({ message: chatSponsorMessage, sponsor_name: chatSponsorName, is_active: chatSponsorActive, sponsor_url: chatSponsorUrl, sponsor_url_active: chatSponsorUrlActive });
+  function finishSave(error: any) {
+    if (error) {
+      alert(error.message);
+      setSaving('');
+      return;
     }
     setTimeout(() => setSaving(''), 1500);
   }
 
+  async function saveNowPlaying() {
+    setSaving('nowplaying');
+    const { error } = await supabase.from('settings').update({ now_playing: nowPlaying, updated_at: new Date().toISOString() }).eq('id', 1);
+    finishSave(error);
+  }
+
+  async function saveAnnouncement() {
+    if (!checkUrls(announcementUrl)) return;
+    setSaving('announcement');
+    const { error } = await supabase.from('settings').update({ 
+      announcement, announcement_active: announcementActive, announcement_url: announcementUrl, announcement_url_active: announcementUrlActive,
+      updated_at: new Date().toISOString() 
+    }).eq('id', 1);
+    finishSave(error);
+  }
+
+  async function saveListenerCount() {
+    setSaving('listener');
+    const { error } = await supabase.from('settings').update({ show_listener_count: showListenerCount, listener_count_base: listenerCountBase, updated_at: new Date().toISOString() }).eq('id', 1);
+    finishSave(error);
+  }
+
+  async function saveChatSponsor() {
+    if (!checkUrls(chatSponsorUrl)) return;
+    setSaving('chatsponsor');
+    const { data } = await supabase.from('chat_sponsored_messages').select('id').limit(1).single();
+    let error: any = null;
+    if (data) {
+      ({ error } = await supabase.from('chat_sponsored_messages').update({ message: chatSponsorMessage, sponsor_name: chatSponsorName, is_active: chatSponsorActive, sponsor_url: chatSponsorUrl, sponsor_url_active: chatSponsorUrlActive }).eq('id', data.id));
+    } else {
+      ({ error } = await supabase.from('chat_sponsored_messages').insert({ message: chatSponsorMessage, sponsor_name: chatSponsorName, is_active: chatSponsorActive, sponsor_url: chatSponsorUrl, sponsor_url_active: chatSponsorUrlActive }));
+    }
+    finishSave(error);
+  }
+
   async function saveSocialLinks() {
+    if (!checkUrls(socialLinks.facebook_url, socialLinks.instagram_url, socialLinks.tiktok_url, socialLinks.youtube_url)) return;
     setSaving('social');
-    await supabase.from('settings').update({ ...socialLinks, updated_at: new Date().toISOString() }).eq('id', 1);
-    setTimeout(() => setSaving(''), 1500);
+    const { error } = await supabase.from('settings').update({ ...socialLinks, updated_at: new Date().toISOString() }).eq('id', 1);
+    finishSave(error);
   }
 
   async function saveShareSettings() {
+    if (!checkUrls(androidStoreUrl, iosStoreUrl)) return;
     setSaving('share');
-    await supabase.from('settings').update({ share_message: shareMessage, android_store_url: androidStoreUrl, ios_store_url: iosStoreUrl, updated_at: new Date().toISOString() }).eq('id', 1);
-    setTimeout(() => setSaving(''), 1500);
+    const { error } = await supabase.from('settings').update({ share_message: shareMessage, android_store_url: androidStoreUrl, ios_store_url: iosStoreUrl, updated_at: new Date().toISOString() }).eq('id', 1);
+    finishSave(error);
   }
 
   async function saveLiveUrl() {
+    if (!checkUrls(liveUrl)) return;
     setSaving('live');
-    await supabase.from('settings').update({ live_url: liveUrl, live_active: liveActive, updated_at: new Date().toISOString() }).eq('id', 1);
-    setTimeout(() => setSaving(''), 1500);
+    const { error } = await supabase.from('settings').update({ live_url: liveUrl, live_active: liveActive, updated_at: new Date().toISOString() }).eq('id', 1);
+    finishSave(error);
   }
 
   const Toggle = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
