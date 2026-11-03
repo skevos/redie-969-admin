@@ -221,7 +221,8 @@ export default function ProducersPage() {
 
   async function handleDelete(id: number) {
     if (!confirm('Διαγραφή παραγωγού;')) return;
-    await supabase.from('producers').delete().eq('id', id);
+    const { error } = await supabase.from('producers').delete().eq('id', id);
+    if (error) alert('Σφάλμα διαγραφής: ' + error.message);
     loadProducers();
   }
 
