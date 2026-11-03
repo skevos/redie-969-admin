@@ -105,36 +105,17 @@ export default function StudioChatPage() {
   async function sendPushToAll(title: string, body: string) {
     if (sendingNotification) return;
     setSendingNotification(true);
-    
     try {
-      const { data: tokens } = await fetchAll<{ token: string }>(() => supabase.from('fcm_tokens').select('token'));
-      if (tokens && tokens.length > 0) {
-        const allTokens = tokens.map(t => t.token);
-        const invalidTokens: string[] = [];
-        // Send in chunks of CHUNK_SIZE tokens
-        for (let i = 0; i < allTokens.length; i += CHUNK_SIZE) {
-          try {
-            const res = await fetch('/api/send-notification', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                tokens: allTokens.slice(i, i + CHUNK_SIZE), 
-                title, 
-                body 
-              })
-            });
-            const isJson = (res.headers.get('content-type') || '').includes('application/json');
-            const data = isJson ? await res.json() : null;
-            if (data && Array.isArray(data.invalidTokens)) invalidTokens.push(...data.invalidTokens);
-          } catch (e) {
-            console.log('Push chunk error:', e);
-          }
-        }
-        // Remove dead tokens (ignore errors)
-        if (invalidTokens.length > 0) {
-          try { await supabase.from('fcm_tokens').delete().in('token', invalidTokens); } catch (e) { console.log(e); }
-        }
-      }
+      // One request: the server loads all tokens and sends (not cut off if the page is left)
+      const res = await fetch('/api/send-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
+        body: JSON.stringify({ toAll: true, title, body })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) console.log('Push error:', res.status, data?.error);
+      else console.log(`Push: sent ${data?.sent}, failed ${data?.failed}`);
     } catch (e) { 
       console.log('Push error:', e); 
     } finally {

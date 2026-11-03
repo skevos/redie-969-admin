@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ADMIN_COOKIE, getSessionSecret, safeEqual, verifySessionToken } from '../../lib/session';
+import { getSupabaseAdmin } from '../../lib/supabaseAdmin';
 
 export const maxDuration = 60;
 
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
   }
   try {
-    const { title, body, token, tokens } = await request.json();
+    const { title, body, token, tokens, toAll } = await request.json();
 
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -35,7 +36,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to obtain FCM access token' }, { status: 500 });
     }
 
-    const tokenList = tokens || (token ? [token] : []);
+    // toAll: the server loads every token itself (one request, cannot be cut off by leaving the page)
+    let tokenList: string[] = tokens || (token ? [token] : []);
+    if (toAll) {
+      const admin = getSupabaseAdmin();
+      tokenList = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await admin.from('fcm_tokens').select('token').range(from, from + 999);
+        if (error) return NextResponse.json({ error: 'fcm_tokens: ' + error.message }, { status: 500 });
+        tokenList.push(...(data || []).map((r: any) => r.token));
+        if (!data || data.length < 1000) break;
+      }
+    }
     const results: any[] = [];
     const invalidTokens: string[] = [];
     const seenTokens = new Set();
@@ -108,6 +120,20 @@ export async function POST(request: NextRequest) {
       }
     });
     await Promise.all(workers);
+
+    // Remove dead tokens with the service role (the anon key cannot delete)
+    if (invalidTokens.length > 0) {
+      try {
+        const admin = getSupabaseAdmin();
+        for (let i = 0; i < invalidTokens.length; i += 200) {
+          await admin.from('fcm_tokens').delete().in('token', invalidTokens.slice(i, i + 200));
+        }
+      } catch (e) {
+        console.error('Dead token cleanup error:', e);
+      }
+    }
+
+    console.log(`[push] "${title}" sent=${results.filter(r => r.success).length} failed=${results.filter(r => !r.success).length} dead=${invalidTokens.length}${firstError ? ' firstError=' + firstError : ''}`);
 
     return NextResponse.json({ 
       sent: results.filter(r => r.success).length,

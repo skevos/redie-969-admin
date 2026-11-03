@@ -137,17 +137,17 @@ export default function NotificationsPage() {
       let lastError = '';
       let fcmError = '';
       const invalidTokens: string[] = [];
-      for (let i = 0; i < allTokens.length; i += CHUNK_SIZE) {
-        const chunk = allTokens.slice(i, i + CHUNK_SIZE);
+      // "All": one request, the server loads every token itself. Area: chunks of tokens from here.
+      const sendAll = targetLocation === 'all';
+      for (let i = 0; i < allTokens.length; i += sendAll ? allTokens.length : CHUNK_SIZE) {
+        const chunk = sendAll ? allTokens : allTokens.slice(i, i + CHUNK_SIZE);
         try {
           const res = await fetch('/api/send-notification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              tokens: chunk, 
-              title: titleWithEmoji, 
-              body 
-            })
+            body: JSON.stringify(sendAll
+              ? { toAll: true, title: titleWithEmoji, body }
+              : { tokens: chunk, title: titleWithEmoji, body })
           });
           const isJson = (res.headers.get('content-type') || '').includes('application/json');
           const data = isJson ? await res.json() : null;
