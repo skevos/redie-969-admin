@@ -135,6 +135,7 @@ export default function NotificationsPage() {
       let failed = 0;
       let anyChunkOk = false;
       let lastError = '';
+      let fcmError = '';
       const invalidTokens: string[] = [];
       for (let i = 0; i < allTokens.length; i += CHUNK_SIZE) {
         const chunk = allTokens.slice(i, i + CHUNK_SIZE);
@@ -155,9 +156,10 @@ export default function NotificationsPage() {
             sent += data.sent || 0;
             failed += data.failed || 0;
             if (Array.isArray(data.invalidTokens)) invalidTokens.push(...data.invalidTokens);
+            if (data.firstError && !fcmError) fcmError = data.firstError;
           } else {
             failed += chunk.length;
-            lastError = (data && data.error) || 'Σφάλμα αποστολής!';
+            lastError = (data && data.error) || `Σφάλμα αποστολής! (HTTP ${res.status})`;
           }
         } catch (e: any) {
           failed += chunk.length;
@@ -172,7 +174,9 @@ export default function NotificationsPage() {
         loadLocations();
       }
 
-      if (anyChunkOk) {
+      if (anyChunkOk && sent === 0) {
+        setResult({ success: false, message: `Καμία συσκευή δεν δέχτηκε την ειδοποίηση (${failed} απέτυχαν). Firebase: ${fcmError || '—'}` });
+      } else if (anyChunkOk) {
         // 4. Save to app_notifications table only after a successful send
         await supabase.from('app_notifications').insert({
           title,

@@ -21,10 +21,15 @@ export async function POST(request: NextRequest) {
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
     if (!projectId || !clientEmail || !privateKey) {
-      return NextResponse.json({ error: 'Firebase config missing' }, { status: 500 });
+      return NextResponse.json({ error: 'Firebase config missing (Vercel: FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY)' }, { status: 500 });
     }
 
-    const jwt = await createJWT(clientEmail, privateKey);
+    let jwt: string;
+    try {
+      jwt = await createJWT(clientEmail, privateKey);
+    } catch (e) {
+      return NextResponse.json({ error: 'FIREBASE_PRIVATE_KEY invalid: ' + String(e) }, { status: 500 });
+    }
     const accessToken = await getAccessToken(jwt);
     if (!accessToken) {
       return NextResponse.json({ error: 'Failed to obtain FCM access token' }, { status: 500 });
@@ -35,10 +40,18 @@ export async function POST(request: NextRequest) {
     const invalidTokens: string[] = [];
     const seenTokens = new Set();
 
+    const unique: string[] = [];
     for (const t of tokenList) {
       if (seenTokens.has(t)) continue;
       seenTokens.add(t);
+      unique.push(t);
+    }
 
+    // Send in parallel (limited concurrency) so 300 tokens finish well inside the 60s limit
+    let firstError = '';
+    const CONCURRENCY = 25;
+    let next = 0;
+    const sendOne = async (t: string) => {
       try {
         const response = await fetch(
           `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
@@ -77,19 +90,31 @@ export async function POST(request: NextRequest) {
           }
         );
 
-        const result = await response.json();
+        const result = await response.json().catch(() => null);
         if (!response.ok && isInvalidTokenError(result)) invalidTokens.push(t);
+        if (!response.ok && !firstError) {
+          firstError = `${result?.error?.status || response.status}: ${result?.error?.message || 'FCM error'}`;
+        }
         results.push({ token: t.substring(0, 20) + '...', success: response.ok, result });
       } catch (e) {
+        if (!firstError) firstError = String(e);
         results.push({ token: t.substring(0, 20) + '...', success: false, error: String(e) });
       }
-    }
+    };
+    const workers = Array.from({ length: Math.min(CONCURRENCY, unique.length) }, async () => {
+      while (next < unique.length) {
+        const t = unique[next++];
+        await sendOne(t);
+      }
+    });
+    await Promise.all(workers);
 
     return NextResponse.json({ 
       sent: results.filter(r => r.success).length,
       failed: results.filter(r => !r.success).length,
       total: results.length,
       invalidTokens,
+      firstError,
       results 
     });
   } catch (error) {
