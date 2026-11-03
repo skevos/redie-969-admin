@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { resolveAutoMessages, fillTemplate } from '../../lib/autoMessages';
 
 export const maxDuration = 60;
 
@@ -23,39 +24,35 @@ async function fetchAll<T = any>(buildQuery: () => any): Promise<T[]> {
   return all;
 }
 
-// Send via the existing FCM route (/api/send-notification) in chunks
+// Send via the existing FCM route: one request, the server loads all tokens itself
 async function sendPushToAll(request: Request, title: string, body: string) {
   try {
-    const tokens = await fetchAll<{ token: string }>(() => supabase.from('fcm_tokens').select('token'));
-    if (tokens.length === 0) return;
-    const allTokens = tokens.map(t => t.token);
     const url = new URL('/api/send-notification', request.url);
-    const invalidTokens: string[] = [];
-    let ok = false;
-
-    for (let i = 0; i < allTokens.length; i += CHUNK_SIZE) {
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-internal-secret': process.env.SESSION_SECRET || '' },
-          body: JSON.stringify({ tokens: allTokens.slice(i, i + CHUNK_SIZE), title, body })
-        });
-        const isJson = (response.headers.get('content-type') || '').includes('application/json');
-        const data = isJson ? await response.json() : null;
-        if (response.ok) ok = true;
-        if (data && Array.isArray(data.invalidTokens)) invalidTokens.push(...data.invalidTokens);
-      } catch (e) {
-        console.error('Push chunk error:', e);
-      }
-    }
-
-    if (invalidTokens.length > 0) {
-      try { await supabase.from('fcm_tokens').delete().in('token', invalidTokens); } catch (e) { console.error(e); }
-    }
-    return ok;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': process.env.SESSION_SECRET || '' },
+      body: JSON.stringify({ toAll: true, title, body })
+    });
+    return response.ok;
   } catch (e) {
     console.error('Push error:', e);
     return false;
+  }
+}
+
+// Push + in-app history, unless the title was left empty in App Content
+async function notify(request: Request, title: string, body: string) {
+  if (!title) return;
+  await sendPushToAll(request, title, body);
+  await supabase.from('app_notifications').insert({ title, body, type: 'chat' });
+}
+
+async function getAutoMessages() {
+  try {
+    const { data } = await supabase.from('settings').select('*').eq('id', 1).single();
+    return resolveAutoMessages(data);
+  } catch {
+    return resolveAutoMessages(null);
   }
 }
 
@@ -156,11 +153,10 @@ export async function GET(request: Request) {
           active_room_id: room.id
         }).eq('id', 1);
 
-        const notifTitle = '💬 Το Chat Άνοιξε!';
-        const notifBody = 'Ξεκινάει σύντομα: ' + upcomingShow.title + ' - Έλα να μιλήσεις μαζί μας!';
-        
-        await sendPushToAll(request, notifTitle, notifBody);
-        await supabase.from('app_notifications').insert({ title: notifTitle, body: notifBody, type: 'chat' });
+        const msgs = await getAutoMessages();
+        await notify(request,
+          fillTemplate(msgs.msg_auto_soon_title, { show: upcomingShow.title }),
+          fillTemplate(msgs.msg_auto_soon_body, { show: upcomingShow.title }));
 
         return NextResponse.json({ action: 'opened', show: upcomingShow.title, reason: '15 minutes before show' });
       }
@@ -180,11 +176,10 @@ export async function GET(request: Request) {
           active_room_id: room.id
         }).eq('id', 1);
 
-        const notifTitle = '🎙️ Live Τώρα!';
-        const notifBody = currentShow.title + ' - Έλα στο chat!';
-        
-        await sendPushToAll(request, notifTitle, notifBody);
-        await supabase.from('app_notifications').insert({ title: notifTitle, body: notifBody, type: 'chat' });
+        const msgs = await getAutoMessages();
+        await notify(request,
+          fillTemplate(msgs.msg_auto_live_title, { show: currentShow.title }),
+          fillTemplate(msgs.msg_auto_live_body, { show: currentShow.title }));
 
         return NextResponse.json({ action: 'opened', show: currentShow.title, reason: 'show currently running' });
       }
@@ -209,6 +204,13 @@ export async function GET(request: Request) {
         is_closed: true,
         closed_at: new Date().toISOString()
       }).eq('id', config.active_room_id);
+
+      const { data: closedRoom } = await supabase.from('chat_rooms').select('show_name, title').eq('id', config.active_room_id).maybeSingle();
+      const closedShow = closedRoom?.show_name || closedRoom?.title || '';
+      const msgs = await getAutoMessages();
+      await notify(request,
+        fillTemplate(msgs.msg_auto_close_title, { show: closedShow }),
+        fillTemplate(msgs.msg_auto_close_body, { show: closedShow }));
 
       return NextResponse.json({ action: 'closed', reason: 'no active or upcoming show' });
     }

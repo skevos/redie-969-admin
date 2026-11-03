@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import Sidebar from "../components/Sidebar";
+import { AUTO_MESSAGE_DEFAULTS, resolveAutoMessages } from "../lib/autoMessages";
 
 export default function ContentPage() {
   const [saving, setSaving] = useState('');
@@ -30,6 +31,7 @@ export default function ContentPage() {
   const [iosStoreUrl, setIosStoreUrl] = useState('https://apps.apple.com/app/id6758665312');
   const [liveUrl, setLiveUrl] = useState('');
   const [liveActive, setLiveActive] = useState(false);
+  const [autoMsgs, setAutoMsgs] = useState<Record<string, string>>({ ...AUTO_MESSAGE_DEFAULTS });
 
   useEffect(() => { loadSettings(); loadChatSponsor(); }, []);
 
@@ -56,6 +58,7 @@ export default function ContentPage() {
         setIosStoreUrl(data.ios_store_url || 'https://apps.apple.com/app/id6758665312');
         setLiveUrl(data.live_url || '');
         setLiveActive(data.live_active || false);
+        setAutoMsgs(resolveAutoMessages(data));
       }
     } catch (e) { console.log(e); }
     setLoading(false);
@@ -140,6 +143,12 @@ export default function ContentPage() {
     if (!checkUrls(androidStoreUrl, iosStoreUrl)) return;
     setSaving('share');
     const { error } = await supabase.from('settings').update({ share_message: shareMessage, android_store_url: androidStoreUrl, ios_store_url: iosStoreUrl, updated_at: new Date().toISOString() }).eq('id', 1);
+    finishSave(error);
+  }
+
+  async function saveAutoMessages() {
+    setSaving('automsgs');
+    const { error } = await supabase.from('settings').update({ ...autoMsgs, updated_at: new Date().toISOString() }).eq('id', 1);
     finishSave(error);
   }
 
@@ -263,6 +272,43 @@ export default function ContentPage() {
               </div>
             </div>
             <button onClick={saveShareSettings} style={{ padding: '12px 24px', background: saving === 'share' ? '#22c55e' : 'linear-gradient(135deg, #e53935, #c62828)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer' }}>{saving === 'share' ? '✓ Saved!' : '💾 Save'}</button>
+          </div>
+
+          {/* Automatic chat notifications */}
+          <div style={{ background: 'white', borderRadius: 20, padding: 28, border: '1px solid #f3f4f6' }}>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>🤖 Αυτόματα Μηνύματα</h2>
+            <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>Οι ειδοποιήσεις που φεύγουν μόνες τους όταν ανοίγει ή κλείνει το chat. Γράψε <b>{'{εκπομπή}'}</b> για το όνομα της εκπομπής. Άφησε τον τίτλο κενό για να μη στέλνεται.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20 }}>
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 8 }}>💬 Άνοιγμα chat (Studio)</label>
+                <input type="text" value={autoMsgs.msg_chat_open_title} onChange={e => setAutoMsgs({ ...autoMsgs, msg_chat_open_title: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box', marginBottom: 8 }} placeholder="Τίτλος (κενό = δεν στέλνεται)" />
+                <input type="text" value={autoMsgs.msg_chat_open_body} onChange={e => setAutoMsgs({ ...autoMsgs, msg_chat_open_body: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box' }} placeholder="Κείμενο" />
+              </div>
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 8 }}>📴 Κλείσιμο chat (Studio)</label>
+                <input type="text" value={autoMsgs.msg_chat_close_title} onChange={e => setAutoMsgs({ ...autoMsgs, msg_chat_close_title: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box', marginBottom: 8 }} placeholder="Τίτλος (κενό = δεν στέλνεται)" />
+                <input type="text" value={autoMsgs.msg_chat_close_body} onChange={e => setAutoMsgs({ ...autoMsgs, msg_chat_close_body: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box' }} placeholder="Κείμενο" />
+              </div>
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 8 }}>⏰ Auto Mode: 15 λεπτά πριν την εκπομπή</label>
+                <input type="text" value={autoMsgs.msg_auto_soon_title} onChange={e => setAutoMsgs({ ...autoMsgs, msg_auto_soon_title: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box', marginBottom: 8 }} placeholder="Τίτλος (κενό = δεν στέλνεται)" />
+                <input type="text" value={autoMsgs.msg_auto_soon_body} onChange={e => setAutoMsgs({ ...autoMsgs, msg_auto_soon_body: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box' }} placeholder="Κείμενο" />
+              </div>
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 8 }}>🎙️ Auto Mode: η εκπομπή ήδη παίζει</label>
+                <input type="text" value={autoMsgs.msg_auto_live_title} onChange={e => setAutoMsgs({ ...autoMsgs, msg_auto_live_title: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box', marginBottom: 8 }} placeholder="Τίτλος (κενό = δεν στέλνεται)" />
+                <input type="text" value={autoMsgs.msg_auto_live_body} onChange={e => setAutoMsgs({ ...autoMsgs, msg_auto_live_body: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box' }} placeholder="Κείμενο" />
+              </div>
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 8 }}>🔕 Auto Mode: κλείσιμο chat</label>
+                <input type="text" value={autoMsgs.msg_auto_close_title} onChange={e => setAutoMsgs({ ...autoMsgs, msg_auto_close_title: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box', marginBottom: 8 }} placeholder="Τίτλος (κενό = δεν στέλνεται)" />
+                <input type="text" value={autoMsgs.msg_auto_close_body} onChange={e => setAutoMsgs({ ...autoMsgs, msg_auto_close_body: e.target.value })} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box' }} placeholder="Κείμενο" />
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button onClick={saveAutoMessages} style={{ padding: '12px 24px', background: saving === 'automsgs' ? '#22c55e' : 'linear-gradient(135deg, #e53935, #c62828)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer' }}>{saving === 'automsgs' ? '✓ Saved!' : '💾 Save'}</button>
+              <button onClick={() => setAutoMsgs({ ...AUTO_MESSAGE_DEFAULTS })} style={{ padding: '12px 18px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: 12, fontWeight: 500, cursor: 'pointer' }}>↩️ Αρχικά κείμενα</button>
+            </div>
           </div>
 
           {/* Live Button URL */}

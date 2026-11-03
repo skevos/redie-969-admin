@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Sidebar from "../components/Sidebar";
+import { resolveAutoMessages, fillTemplate } from "../lib/autoMessages";
 import { supabase } from "../lib/supabase";
 
 const CHUNK_SIZE = 300;
@@ -123,6 +124,16 @@ export default function StudioChatPage() {
     }
   }
 
+  // Editable texts from App Content (falls back to the original texts)
+  async function getAutoMessages() {
+    try {
+      const { data } = await supabase.from('settings').select('*').eq('id', 1).single();
+      return resolveAutoMessages(data);
+    } catch {
+      return resolveAutoMessages(null);
+    }
+  }
+
   async function openChat() {
     const title = "Live Chat - " + new Date().toLocaleDateString('el-GR');
     const { data: room, error } = await supabase.from('chat_rooms').insert({ 
@@ -140,15 +151,13 @@ export default function StudioChatPage() {
       setChatOpen(true);
       setMessages([]);
       
-      // Save notification to app_notifications table
-      await supabase.from('app_notifications').insert({
-        title: '💬 Το Chat Άνοιξε!',
-        body: 'Έλα να μιλήσεις μαζί μας live!',
-        type: 'chat'
-      });
-      
-      // Send push notification
-      await sendPushToAll('💬 Το Chat Άνοιξε!', 'Έλα να μιλήσεις μαζί μας live!');
+      const msgs = await getAutoMessages();
+      const t = fillTemplate(msgs.msg_chat_open_title, {});
+      const b = fillTemplate(msgs.msg_chat_open_body, {});
+      if (t) {
+        await supabase.from('app_notifications').insert({ title: t, body: b, type: 'chat' });
+        await sendPushToAll(t, b);
+      }
     }
   }
 
@@ -173,15 +182,13 @@ export default function StudioChatPage() {
     }
     setChatOpen(false);
     
-    // Save notification to app_notifications table
-    await supabase.from('app_notifications').insert({
-      title: '📴 Το Chat Έκλεισε',
-      body: 'Ευχαριστούμε για τη συμμετοχή σας! Τα λέμε σύντομα.',
-      type: 'chat'
-    });
-    
-    // Send push notification when chat closes
-    await sendPushToAll('📴 Το Chat Έκλεισε', 'Ευχαριστούμε για τη συμμετοχή σας! Τα λέμε σύντομα.');
+    const msgs = await getAutoMessages();
+    const t = fillTemplate(msgs.msg_chat_close_title, {});
+    const bd = fillTemplate(msgs.msg_chat_close_body, {});
+    if (t) {
+      await supabase.from('app_notifications').insert({ title: t, body: bd, type: 'chat' });
+      await sendPushToAll(t, bd);
+    }
   }
 
   async function toggleChat() {
