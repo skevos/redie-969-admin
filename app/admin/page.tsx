@@ -11,6 +11,9 @@ export default function SchedulePage() {
   const [editingShow, setEditingShow] = useState<any>(null);
   const [form, setForm] = useState({ title: '', producer_name: '', day_of_week: 0, start_time: '09:00', end_time: '10:00', sponsor_name: '', sponsor_active: false, sponsor_url: '', sponsor_url_active: false });
   const [reminderCounts, setReminderCounts] = useState<Record<string, number>>({});
+  // Multiple sponsors per show (table show_sponsors). The old single sponsor_* fields on shows
+  // are kept in sync so older app versions still show the names.
+  const [sponsors, setSponsors] = useState<{ name: string; url: string; url_active: boolean; active: boolean }[]>([]);
 
   const daysGreek = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο', 'Κυριακή'];
 
@@ -35,12 +38,35 @@ export default function SchedulePage() {
   }
 
   async function saveShow() {
-    const { error } = editingShow
-      ? await supabase.from('shows').update(form).eq('id', editingShow.id)
-      : await supabase.from('shows').insert(form);
-    if (error) { alert(error.message); return; }
+    const list = sponsors.map(sp => ({ ...sp, name: sp.name.trim(), url: sp.url.trim() })).filter(sp => sp.name);
+    const activeList = list.filter(sp => sp.active);
+    const single = activeList.length === 1 && activeList[0].url_active && activeList[0].url ? activeList[0] : null;
+    const payload = {
+      ...form,
+      sponsor_name: activeList.map(sp => sp.name).join(' • '),
+      sponsor_active: activeList.length > 0,
+      sponsor_url: single ? single.url : '',
+      sponsor_url_active: !!single,
+    };
+    const res = editingShow
+      ? await supabase.from('shows').update(payload).eq('id', editingShow.id).select('id').single()
+      : await supabase.from('shows').insert(payload).select('id').single();
+    if (res.error) { alert(res.error.message); return; }
+    const showId = res.data?.id;
+    if (showId) {
+      const del = await supabase.from('show_sponsors').delete().eq('show_id', showId);
+      if (del.error) {
+        alert('Η εκπομπή αποθηκεύτηκε, αλλά οι χορηγοί όχι: ' + del.error.message);
+      } else if (list.length > 0) {
+        const ins = await supabase.from('show_sponsors').insert(list.map((sp, idx) => ({
+          show_id: showId, name: sp.name, url: sp.url || null, url_active: sp.url_active && !!sp.url, active: sp.active, sort: idx,
+        })));
+        if (ins.error) alert('Η εκπομπή αποθηκεύτηκε, αλλά οι χορηγοί όχι: ' + ins.error.message);
+      }
+    }
     setShowModal(false);
     setEditingShow(null);
+    setSponsors([]);
     setForm({ title: '', producer_name: '', day_of_week: 0, start_time: '09:00', end_time: '10:00', sponsor_name: '', sponsor_active: false, sponsor_url: '', sponsor_url_active: false });
     loadShows();
   }
@@ -65,14 +91,22 @@ export default function SchedulePage() {
     loadShows();
   }
 
-  function openEdit(show: any) {
+  async function openEdit(show: any) {
     setEditingShow(show);
+    setSponsors([]);
+    const { data: rows, error } = await supabase.from('show_sponsors').select('name, url, url_active, active, sort').eq('show_id', show.id).order('sort');
+    if (!error && rows && rows.length > 0) {
+      setSponsors(rows.map((r: any) => ({ name: r.name || '', url: r.url || '', url_active: !!r.url_active, active: r.active !== false })));
+    } else if (show.sponsor_name) {
+      setSponsors([{ name: show.sponsor_name, url: show.sponsor_url || '', url_active: !!show.sponsor_url_active, active: !!show.sponsor_active }]);
+    }
     setForm({ title: show.title, producer_name: show.producer_name || '', day_of_week: show.day_of_week, start_time: show.start_time?.slice(0,5) || '09:00', end_time: show.end_time?.slice(0,5) || '10:00', sponsor_name: show.sponsor_name || '', sponsor_active: show.sponsor_active || false, sponsor_url: show.sponsor_url || '', sponsor_url_active: show.sponsor_url_active || false });
     setShowModal(true);
   }
 
   function openNew() {
     setEditingShow(null);
+    setSponsors([]);
     setForm({ title: '', producer_name: '', day_of_week: 0, start_time: '09:00', end_time: '10:00', sponsor_name: '', sponsor_active: false, sponsor_url: '', sponsor_url_active: false });
     setShowModal(true);
   }
@@ -126,7 +160,7 @@ export default function SchedulePage() {
                             <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>{show.producer_name || 'REDIE 969'}</p>
                             {show.sponsor_active && show.sponsor_name && (
                               <p style={{ color: '#f59e0b', fontSize: 11, margin: '4px 0 0 0', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <span>💰</span> Χορηγός: {show.sponsor_name}
+                                <span>💰</span> Χορηγοί: {show.sponsor_name}
                               </p>
                             )}
                           </div>
@@ -190,48 +224,46 @@ export default function SchedulePage() {
                 </div>
               </div>
 
-              {/* SPONSOR SECTION */}
+              {/* SPONSORS SECTION */}
               <div style={{ borderTop: '2px solid #f59e0b', paddingTop: 16, marginTop: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                   <div>
                     <p style={{ fontWeight: 600, color: '#1f2937', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span>💰</span> Χορηγία Εκπομπής
+                      <span>💰</span> Χορηγοί Εκπομπής
                     </p>
-                    <p style={{ color: '#6b7280', fontSize: 12, margin: '4px 0 0 0' }}>Εμφανίζεται στην app κάτω από τον παραγωγό</p>
+                    <p style={{ color: '#6b7280', fontSize: 12, margin: '4px 0 0 0' }}>Εμφανίζονται στην app κάτω από τον παραγωγό, με τη σειρά που είναι εδώ</p>
                   </div>
-                  <button 
-                    type="button"
-                    onClick={() => setForm({...form, sponsor_active: !form.sponsor_active})} 
-                    style={{ width: 52, height: 28, borderRadius: 14, background: form.sponsor_active ? '#22c55e' : '#4b5563', border: 'none', cursor: 'pointer', position: 'relative' }}
-                  >
-                    <div style={{ width: 22, height: 22, background: 'white', borderRadius: '50%', position: 'absolute', top: 3, left: form.sponsor_active ? 27 : 3, transition: 'all 0.2s' }} />
-                  </button>
+                  <button type="button" onClick={() => setSponsors([...sponsors, { name: '', url: '', url_active: false, active: true }])} style={{ padding: '8px 14px', background: '#fffbeb', color: '#b45309', border: '1px solid #f59e0b', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Χορηγός</button>
                 </div>
-                <input 
-                  type="text" 
-                  value={form.sponsor_name} 
-                  onChange={e => setForm({...form, sponsor_name: e.target.value})} 
-                  style={{ width: '100%', padding: '12px 16px', border: '2px solid #f59e0b', borderRadius: 12, fontSize: 14, outline: 'none', background: form.sponsor_active ? '#fffbeb' : '#f9fafb', boxSizing: 'border-box' }} 
-                  placeholder="Όνομα χορηγού π.χ. Καφετέρια Ο Νίκος" 
-                  disabled={!form.sponsor_active}
-                />
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, padding: '10px 14px', background: form.sponsor_url_active ? 'rgba(59,130,246,0.1)' : '#f9fafb', borderRadius: 10 }}>
-                  <div>
-                    <p style={{ fontWeight: 600, color: '#1f2937', margin: 0, fontSize: 13 }}>🔗 Link χορηγού</p>
-                    <p style={{ color: '#6b7280', fontSize: 11, margin: 0 }}>{form.sponsor_url_active ? '✅ Clickable' : 'Απενεργοποιημένο'}</p>
-                  </div>
-                  <button type="button" onClick={() => setForm({...form, sponsor_url_active: !form.sponsor_url_active})} style={{ width: 44, height: 24, borderRadius: 12, background: form.sponsor_url_active ? '#3b82f6' : '#9ca3af', border: 'none', cursor: 'pointer', position: 'relative' }} disabled={!form.sponsor_active}>
-                    <div style={{ width: 18, height: 18, background: 'white', borderRadius: '50%', position: 'absolute', top: 3, left: form.sponsor_url_active ? 23 : 3, transition: 'all 0.2s' }} />
-                  </button>
+                {sponsors.length === 0 && (
+                  <p style={{ color: '#9ca3af', fontSize: 13, margin: '4px 0 0 0' }}>Καμία χορηγία. Πάτα «+ Χορηγός» για να προσθέσεις.</p>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {sponsors.map((sp, idx) => {
+                    const update = (patch: any) => setSponsors(sponsors.map((x, k) => k === idx ? { ...x, ...patch } : x));
+                    const move = (dir: number) => {
+                      const k = idx + dir; if (k < 0 || k >= sponsors.length) return;
+                      const next = [...sponsors]; [next[idx], next[k]] = [next[k], next[idx]]; setSponsors(next);
+                    };
+                    return (
+                      <div key={idx} style={{ border: '1px solid #fde68a', background: sp.active ? '#fffbeb' : '#f9fafb', borderRadius: 12, padding: 12 }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                          <input type="text" value={sp.name} onChange={e => update({ name: e.target.value })} style={{ flex: 1, padding: '10px 12px', border: '2px solid #f59e0b', borderRadius: 10, fontSize: 14, outline: 'none', background: 'white', boxSizing: 'border-box' }} placeholder="Όνομα χορηγού π.χ. Καφετέρια Ο Νίκος" />
+                          <button type="button" title="Ενεργός" onClick={() => update({ active: !sp.active })} style={{ width: 44, height: 24, borderRadius: 12, background: sp.active ? '#22c55e' : '#9ca3af', border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0 }}>
+                            <div style={{ width: 18, height: 18, background: 'white', borderRadius: '50%', position: 'absolute', top: 3, left: sp.active ? 23 : 3, transition: 'all 0.2s' }} />
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <input type="text" value={sp.url} onChange={e => update({ url: e.target.value, url_active: e.target.value.trim() ? (sp.url_active || !sp.url) : false })} style={{ flex: 1, padding: '8px 12px', border: '2px solid #3b82f6', borderRadius: 10, fontSize: 13, outline: 'none', background: sp.url_active ? '#eff6ff' : 'white', boxSizing: 'border-box' }} placeholder="Link (προαιρετικό) https://..." />
+                          <button type="button" title="Link clickable" onClick={() => update({ url_active: !sp.url_active })} disabled={!sp.url.trim()} style={{ padding: '6px 10px', background: sp.url_active ? '#3b82f6' : '#e5e7eb', color: sp.url_active ? 'white' : '#6b7280', border: 'none', borderRadius: 8, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>🔗</button>
+                          <button type="button" title="Πάνω" onClick={() => move(-1)} style={{ padding: '6px 8px', background: '#f3f4f6', border: 'none', borderRadius: 8, cursor: 'pointer' }}>↑</button>
+                          <button type="button" title="Κάτω" onClick={() => move(1)} style={{ padding: '6px 8px', background: '#f3f4f6', border: 'none', borderRadius: 8, cursor: 'pointer' }}>↓</button>
+                          <button type="button" title="Αφαίρεση" onClick={() => setSponsors(sponsors.filter((_, k) => k !== idx))} style={{ padding: '6px 8px', background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 8, cursor: 'pointer' }}>✕</button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <input 
-                  type="text" 
-                  value={form.sponsor_url} 
-                  onChange={e => setForm({...form, sponsor_url: e.target.value})} 
-                  style={{ width: '100%', padding: '10px 14px', border: '2px solid #3b82f6', borderRadius: 10, fontSize: 13, outline: 'none', background: form.sponsor_url_active ? '#eff6ff' : '#f9fafb', marginTop: 8, boxSizing: 'border-box' }} 
-                  placeholder="https://example.com" 
-                  disabled={!form.sponsor_active || !form.sponsor_url_active}
-                />
               </div>
             </div>
 
