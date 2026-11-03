@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { hashPassword } from '../../../../lib/password';
 import { jsonError, logAudit, requireAdmin } from '../../../../lib/serverAuth';
+import { findLogin, getAllUsernames, getUsername, setCredentials } from '../../../../lib/producerCredentials';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,16 +16,11 @@ export async function GET(req: NextRequest) {
   try {
     const db = getSupabaseAdmin();
     if (id) {
-      const { data, error } = await db.from('producers').select('username').eq('id', id).maybeSingle();
-      if (error) return jsonError(error.message, 400);
-      if (!data) return jsonError('Not found', 404);
-      return NextResponse.json({ username: data.username ?? null });
+      const { data: exists } = await db.from('producers').select('id').eq('id', id).maybeSingle();
+      if (!exists) return jsonError('Not found', 404);
+      return NextResponse.json({ username: await getUsername(db, id) });
     }
-    const { data, error } = await db.from('producers').select('id, username');
-    if (error) return jsonError(error.message, 400);
-    const usernames: Record<string, string | null> = {};
-    (data || []).forEach((r: any) => { usernames[String(r.id)] = r.username ?? null; });
-    return NextResponse.json({ usernames });
+    return NextResponse.json({ usernames: await getAllUsernames(db) });
   } catch (e: any) {
     return jsonError(e?.message || 'Server error', 500);
   }
@@ -42,14 +38,14 @@ export async function POST(req: NextRequest) {
   if (typeof b.password === 'string' && b.password) update.password = await hashPassword(b.password);
   if (Object.keys(update).length === 0) return NextResponse.json({ ok: true });
   try {
-    const { data, error } = await getSupabaseAdmin()
-      .from('producers')
-      .update(update)
-      .eq('id', b.id)
-      .select('id')
-      .maybeSingle();
-    if (error) return jsonError(error.message, 400);
-    if (!data) return jsonError('Not found', 404);
+    const db = getSupabaseAdmin();
+    const { data: exists } = await db.from('producers').select('id').eq('id', b.id).maybeSingle();
+    if (!exists) return jsonError('Not found', 404);
+    if (update.username) {
+      const taken = await findLogin(db, update.username);
+      if (taken && String(taken.producer_id) !== String(b.id)) return jsonError('Το username χρησιμοποιείται ήδη', 400);
+    }
+    await setCredentials(db, b.id, update);
     await logAudit(s.uid, 'producer_credentials_updated', { id: b.id, username: 'username' in update, password: 'password' in update });
     return NextResponse.json({ ok: true });
   } catch (e: any) {

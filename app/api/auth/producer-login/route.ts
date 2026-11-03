@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../lib/supabaseAdmin';
 import { DUMMY_HASH, hashPassword, verifyPassword } from '../../../lib/password';
+import { findLogin, setCredentials } from '../../../lib/producerCredentials';
 import {
   PRODUCER_COOKIE,
   PRODUCER_MAX_AGE,
@@ -25,24 +26,22 @@ export async function POST(req: NextRequest) {
 
   try {
     const db = getSupabaseAdmin();
-    const { data: row } = await db
-      .from('producers')
-      .select(`${PRODUCER_PUBLIC_COLUMNS}, password`)
-      .eq('username', username)
-      .eq('is_active', true)
-      .maybeSingle();
+    const login = await findLogin(db, username);
+    const { data: row } = login
+      ? await db.from('producers').select(PRODUCER_PUBLIC_COLUMNS).eq('id', login.producer_id).eq('is_active', true).maybeSingle()
+      : { data: null } as any;
 
-    if (!row) {
+    if (!login || !row) {
       await verifyPassword(password, DUMMY_HASH);
       return jsonError(GENERIC_LOGIN_ERROR, 401);
     }
 
-    const { password: stored, ...producer } = row as any;
-    const { ok, needsRehash } = await verifyPassword(password, stored);
+    const producer = row as any;
+    const { ok, needsRehash } = await verifyPassword(password, login.password || '');
     if (!ok) return jsonError(GENERIC_LOGIN_ERROR, 401);
 
     if (needsRehash) {
-      await db.from('producers').update({ password: await hashPassword(password) }).eq('id', producer.id);
+      await setCredentials(db, producer.id, { password: await hashPassword(password) });
     }
 
     const token = await createSessionToken(
