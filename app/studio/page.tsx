@@ -31,6 +31,31 @@ export default function StudioChatPage() {
   const [nextShow, setNextShow] = useState<any>(null);
   const [replyText, setReplyText] = useState('');
   const [sendingNotification, setSendingNotification] = useState(false);
+  // Reports of chat messages from the app (table chat_reports)
+  const [reports, setReports] = useState<any[]>([]);
+
+  async function loadReports() {
+    const { data, error } = await supabase.from('chat_reports').select('*').eq('handled', false).order('created_at', { ascending: false }).limit(30);
+    if (!error) setReports(data || []);
+  }
+
+  async function hideReported(r: any) {
+    if (r.message_id) await supabase.from('chat_messages').update({ is_hidden: true }).eq('id', r.message_id);
+    await supabase.from('chat_reports').update({ handled: true }).or(`id.eq.${r.id}${r.message_id ? `,message_id.eq.${r.message_id}` : ''}`);
+    setMessages(prev => prev.map(m => String(m.id) === String(r.message_id) ? { ...m, is_hidden: true } : m));
+    loadReports();
+  }
+
+  async function dismissReport(r: any) {
+    await supabase.from('chat_reports').update({ handled: true }).eq('id', r.id);
+    loadReports();
+  }
+
+  useEffect(() => {
+    loadReports();
+    const t = setInterval(loadReports, 30000);
+    return () => clearInterval(t);
+  }, []);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const toggleBusyRef = useRef(false);
   const replyBusyRef = useRef(false);
@@ -461,6 +486,25 @@ export default function StudioChatPage() {
                 )}
               </div>
             )}
+
+            <div style={{ background: '#fff7ed', borderRadius: 16, padding: 20, marginBottom: 16, border: reports.length ? '2px solid #f97316' : '1px solid #fed7aa' }}>
+              <p style={{ color: '#9a3412', fontSize: 13, fontWeight: 700, marginBottom: 8 }}>🚩 Αναφορές ακροατών {reports.length > 0 && `(${reports.length})`}</p>
+              {reports.length === 0 ? (
+                <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>Καμία νέα αναφορά</p>
+              ) : reports.map(r => (
+                <div key={r.id} style={{ background: 'white', borderRadius: 10, padding: 10, marginBottom: 8, border: '1px solid #fed7aa' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#1f2937', margin: '0 0 2px 0' }}>{r.nickname || '—'}</p>
+                  <p style={{ fontSize: 12, color: '#374151', margin: '0 0 4px 0', wordBreak: 'break-word' }}>{r.message_text}</p>
+                  <p style={{ fontSize: 11, color: '#9a3412', margin: '0 0 8px 0' }}>
+                    {r.reason === 'spam' ? 'Spam / διαφήμιση' : r.reason === 'abuse' ? 'Προσβλητικό' : 'Άλλο ακατάλληλο'} · {new Date(r.created_at).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => hideReported(r)} style={{ flex: 1, padding: '6px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Απόκρυψη</button>
+                    <button onClick={() => dismissReport(r)} style={{ flex: 1, padding: '6px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Εντάξει</button>
+                  </div>
+                </div>
+              ))}
+            </div>
 
             <div style={{ background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)', borderRadius: 16, padding: 20 }}>
               <p style={{ color: '#991b1b', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>⚠️ Quick Actions</p>
