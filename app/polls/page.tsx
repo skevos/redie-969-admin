@@ -110,8 +110,9 @@ export default function PollsPage() {
     loadPolls();
   }
 
-  async function toggleActive(poll: any) {
-    if (!poll.is_active) {
+  // expired = countdown ended: the poll is hidden in the app, so treat it as inactive (activate again)
+  async function toggleActive(poll: any, expired = false) {
+    if (!poll.is_active || expired) {
       // Απενεργοποίηση όλων των άλλων
       await supabase.from("polls").update({ is_active: false, countdown_end: null }).neq("id", poll.id);
       const minutes = countdownInput[poll.id] || 0;
@@ -535,7 +536,7 @@ export default function PollsPage() {
                                   loadPolls();
                                 } else {
                                   const minutes = countdownInput[poll.id] || 0;
-                                  if (minutes <= 0) return;
+                                  if (minutes <= 0) { alert("Γράψε πρώτα πόσα λεπτά (στο κουτάκι αριστερά) και μετά πάτα τον διακόπτη."); return; }
                                   const countdown_end = new Date(Date.now() + minutes * 60000).toISOString();
                                   await supabase.from("polls").update({ countdown_end }).eq("id", poll.id);
                                   loadPolls();
@@ -556,11 +557,11 @@ export default function PollsPage() {
                         }}
                       >
                         <button
-                          onClick={() => toggleActive(poll)}
+                          onClick={() => toggleActive(poll, countdownExpired)}
                           style={{
                             padding: "10px 16px",
-                            background: poll.is_active ? "#fef2f2" : "#22c55e",
-                            color: poll.is_active ? "#dc2626" : "white",
+                            background: (poll.is_active && !countdownExpired) ? "#fef2f2" : "#22c55e",
+                            color: (poll.is_active && !countdownExpired) ? "#dc2626" : "white",
                             border: poll.is_active
                               ? "1px solid #fca5a5"
                               : "none",
@@ -570,7 +571,7 @@ export default function PollsPage() {
                             fontSize: 13,
                           }}
                         >
-                          {poll.is_active ? "⏹ Απενεργ." : "▶ Ενεργοπ."}
+                          {(poll.is_active && !countdownExpired) ? "⏹ Απενεργ." : "▶ Ενεργοπ."}
                         </button>
                         <button
                           onClick={async () => {
