@@ -11,6 +11,7 @@ export default function Sidebar() {
     { href: "/admin", icon: "📅", label: "Πρόγραμμα" },
     { href: "/producers", icon: "👥", label: "Παραγωγοί" },
     { href: "/studio", icon: "💬", label: "Studio Chat" },
+    { href: "/requests", icon: "🎵", label: "Αιτήματα" },
     { href: "/archives", icon: "📁", label: "Chat Archives" },
     { href: "/geo", icon: "🌍", label: "Geo Analytics" },
     { href: "/animations", icon: "✨", label: "Animations" },

@@ -29,6 +29,28 @@ export async function GET(req: NextRequest) {
   if (s.error) return s.error;
   try {
     const db = getSupabaseAdmin();
+    // History view for the Αιτήματα page: every request (any status) of the last N days
+    if (req.nextUrl.searchParams.get('view') === 'history') {
+      const days = Math.min(Math.max(Number(req.nextUrl.searchParams.get('days')) || 30, 1), 3650);
+      const from = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
+      const { data, error } = await db.from('song_requests')
+        .select('id, song, for_name, from_name, message, status, created_at, handled_at, handled_by')
+        .gte('created_at', from).order('created_at', { ascending: false }).limit(5000);
+      if (error) return missingTable(error) ? NextResponse.json({ setupNeeded: true, open: false, requests: [] }) : jsonError(error.message, 500);
+      // Producer names for handled_by = "producer:<id>"
+      const ids = Array.from(new Set((data || []).map((r: any) => String(r.handled_by || '')).filter(x => x.startsWith('producer:')).map(x => x.slice(9))));
+      const names: Record<string, string> = {};
+      if (ids.length) {
+        const { data: prods } = await db.from('producers').select('id, name').in('id', ids);
+        (prods || []).forEach((p: any) => { names[`producer:${p.id}`] = p.name; });
+      }
+      const st = await db.from('settings').select('requests_open').eq('id', 1).maybeSingle();
+      const open = st.error ? true : (st.data as any)?.requests_open !== false;
+      return NextResponse.json({
+        open,
+        requests: (data || []).map((r: any) => ({ ...r, handled_by_name: r.handled_by ? (names[r.handled_by] || (String(r.handled_by).startsWith('admin') ? 'Dashboard' : '')) : '' })),
+      });
+    }
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const { data, error } = await db.from('song_requests').select('id, song, for_name, from_name, message, status, created_at')
       .eq('status', 'new').gte('created_at', since).order('created_at', { ascending: true }).limit(100);
