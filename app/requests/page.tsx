@@ -117,7 +117,7 @@ export default function RequestsPage() {
         <div style={{ padding: 28, display: 'grid', gap: 20 }}>
           {setupNeeded && <div style={{ ...card, background: '#fffbeb', color: '#92400e' }}>Λείπει ο πίνακας song_requests — χρειάζεται το SQL.</div>}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 380px) 1fr', gap: 20, alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, alignItems: 'start' }}>
             <SongRequestsPanel variant="card" />
             <div style={{ display: 'grid', gap: 20 }}>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>

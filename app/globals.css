@@ -4,12 +4,39 @@
   padding: 0;
 }
 
+:root {
+  --redie-red: #E53935;
+  --redie-red-soft: rgba(229, 57, 53, 0.08);
+  --ink: #111827;
+  --muted: #6b7280;
+  --line: #eceef3;
+  --font: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f8fafc;
+  color: var(--ink);
+  background:
+    radial-gradient(900px 500px at 100% -10%, rgba(229, 57, 53, 0.07), transparent 60%),
+    radial-gradient(700px 500px at 20% 110%, rgba(99, 102, 241, 0.05), transparent 60%),
+    #f5f6fa;
+  background-attachment: fixed;
 }
+
+/* Pages set their own font inline — use the dashboard font everywhere */
+body [style*="font-family"]:not(code):not(pre) {
+  font-family: var(--font) !important;
+}
+
+/* Light pages paint a flat #f8fafc wrapper: let the body background show through */
+body > div[style*="rgb(248, 250, 252)"],
+body > div[style*="#f8fafc"] {
+  background: transparent !important;
+}
+
+::selection { background: rgba(229, 57, 53, 0.18); }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
@@ -25,9 +52,86 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes redieFadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Gentle page entrance */
+main { animation: redieFadeUp 0.35s ease both; }
+
+/* Sticky page headers: frosted glass */
+main > header {
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--line) !important;
+}
+
+/* Cards: softer border, depth on hover */
+main [style*="background: white"][style*="border-radius: 20px"],
+main [style*="background: white"][style*="border-radius: 16px"],
+main [style*="background: white"][style*="border-radius: 24px"],
+main [style*="background:white"][style*="border-radius:20px"],
+main [style*="background:white"][style*="border-radius:16px"],
+main [style*="background:white"][style*="border-radius:24px"] {
+  border-color: var(--line) !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px rgba(16, 24, 40, 0.04) !important;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+main [style*="background: white"][style*="border-radius: 20px"]:hover,
+main [style*="background: white"][style*="border-radius: 16px"]:hover,
+main [style*="background:white"][style*="border-radius:20px"]:hover,
+main [style*="background:white"][style*="border-radius:16px"]:hover {
+  box-shadow: 0 2px 4px rgba(16, 24, 40, 0.05), 0 12px 28px rgba(16, 24, 40, 0.08) !important;
+}
+
+/* Buttons: tactile feedback */
+button {
+  font-family: inherit;
+  transition: transform 0.12s ease, filter 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+button:not(:disabled):hover { filter: brightness(1.04); }
+button:not(:disabled):active { transform: scale(0.97); }
+button:disabled { opacity: 0.55; cursor: not-allowed !important; }
+
+/* Inputs: red focus ring */
+input, select, textarea { font-family: inherit; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+input:focus, select:focus, textarea:focus {
+  border-color: var(--redie-red) !important;
+  box-shadow: 0 0 0 4px rgba(229, 57, 53, 0.12) !important;
+  outline: none !important;
+}
+
+/* Tables */
+main table tbody tr { transition: background 0.12s ease; }
+main table tbody tr:hover { background: #fafafc; }
+
+/* ---------- Sidebar (white, logo, REDIE black + 969 red — see Sidebar.tsx) ---------- */
+.redie-nav-link:hover { background: #f6f7f9 !important; color: #111827 !important; }
+.redie-nav-link.active:hover { background: rgba(229, 57, 53, 0.1) !important; color: var(--redie-red) !important; }
+.redie-nav-section { color: #9ca3af; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 14px 14px 6px; }
+
+/* Narrow windows: icon-only sidebar */
+@media (max-width: 1000px) {
+  .redie-sidebar { width: 76px !important; }
+  .redie-sidebar .redie-brand-text,
+  .redie-sidebar .redie-nav-label,
+  .redie-sidebar .redie-nav-section,
+  .redie-sidebar .redie-nav-dot,
+  .redie-sidebar .redie-footer-text { display: none !important; }
+  .redie-sidebar .redie-brand { justify-content: center; padding: 18px 8px !important; }
+  .redie-sidebar .redie-brand img { width: 44px !important; height: 44px !important; }
+  .redie-sidebar .redie-nav-link { justify-content: center; padding: 12px 0 !important; }
+  .redie-sidebar .redie-footer { padding: 12px 8px !important; }
+  main[style*="margin-left: 260px"],
+  main[style*="margin-left:260px"] { margin-left: 76px !important; }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -35,10 +139,13 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.14);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.24);
+  background-clip: padding-box;
 }
