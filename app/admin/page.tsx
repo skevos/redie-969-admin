@@ -14,6 +14,9 @@ export default function SchedulePage() {
   // Multiple sponsors per show (table show_sponsors). The old single sponsor_* fields on shows
   // are kept in sync so older app versions still show the names.
   const [sponsors, setSponsors] = useState<{ name: string; url: string; url_active: boolean; active: boolean }[]>([]);
+  // Show photo (shows.image_url). Uploaded to the existing "producers" storage bucket under shows/.
+  const [imageUrl, setImageUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const daysGreek = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο', 'Κυριακή'];
 
@@ -47,7 +50,10 @@ export default function SchedulePage() {
       sponsor_active: activeList.length > 0,
       sponsor_url: single ? single.url : '',
       sponsor_url_active: !!single,
-    };
+    } as any;
+    // Only send image_url when the column exists (it comes back in select('*')) or a photo was chosen,
+    // so saving keeps working even before the SQL for the new column has been run.
+    if (imageUrl || (editingShow && 'image_url' in editingShow)) payload.image_url = imageUrl || null;
     const res = editingShow
       ? await supabase.from('shows').update(payload).eq('id', editingShow.id).select('id').single()
       : await supabase.from('shows').insert(payload).select('id').single();
@@ -67,6 +73,7 @@ export default function SchedulePage() {
     setShowModal(false);
     setEditingShow(null);
     setSponsors([]);
+    setImageUrl('');
     setForm({ title: '', producer_name: '', day_of_week: 0, start_time: '09:00', end_time: '10:00', sponsor_name: '', sponsor_active: false, sponsor_url: '', sponsor_url_active: false });
     loadShows();
   }
@@ -91,9 +98,27 @@ export default function SchedulePage() {
     loadShows();
   }
 
+  async function uploadShowImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const fileName = `shows/show_${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('producers').upload(fileName, file);
+    if (error) {
+      alert('Σφάλμα upload: ' + error.message);
+    } else {
+      const { data } = supabase.storage.from('producers').getPublicUrl(fileName);
+      setImageUrl(data.publicUrl);
+    }
+    setUploadingImage(false);
+    e.target.value = '';
+  }
+
   async function openEdit(show: any) {
     setEditingShow(show);
     setSponsors([]);
+    setImageUrl(show.image_url || '');
     const { data: rows, error } = await supabase.from('show_sponsors').select('name, url, url_active, active, sort').eq('show_id', show.id).order('sort');
     if (!error && rows && rows.length > 0) {
       setSponsors(rows.map((r: any) => ({ name: r.name || '', url: r.url || '', url_active: !!r.url_active, active: r.active !== false })));
@@ -107,6 +132,7 @@ export default function SchedulePage() {
   function openNew() {
     setEditingShow(null);
     setSponsors([]);
+    setImageUrl('');
     setForm({ title: '', producer_name: '', day_of_week: 0, start_time: '09:00', end_time: '10:00', sponsor_name: '', sponsor_active: false, sponsor_url: '', sponsor_url_active: false });
     setShowModal(true);
   }
@@ -152,9 +178,13 @@ export default function SchedulePage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                       {dayShows.map(show => (
                         <div key={show.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16, background: show.is_live ? 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)' : '#f9fafb', borderRadius: 14, border: show.is_live ? '2px solid #e53935' : '1px solid #f3f4f6' }}>
+                          {show.image_url ? (
+                            <img src={show.image_url} alt="" style={{ width: 50, height: 50, borderRadius: 12, objectFit: 'cover', flexShrink: 0, border: show.is_live ? '2px solid #e53935' : 'none' }} />
+                          ) : (
                           <div style={{ width: 50, height: 50, background: show.is_live ? 'linear-gradient(135deg, #e53935 0%, #c62828 100%)' : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 9, fontWeight: 800, textAlign: 'center', lineHeight: 1.1 }}>
                             REDIE<br/>969
                           </div>
+                          )}
                           <div style={{ flex: 1 }}>
                             <p style={{ fontWeight: 700, color: '#1f2937', margin: '0 0 4px 0', fontSize: 15 }}>{show.title}</p>
                             <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>{show.producer_name || 'REDIE 969'}</p>
@@ -199,6 +229,26 @@ export default function SchedulePage() {
             <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24, color: '#1f2937' }}>{editingShow ? 'Επεξεργασία Εκπομπής' : 'Νέα Εκπομπή'}</h2>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Φωτογραφία εκπομπής</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  {imageUrl ? (
+                    <img src={imageUrl} alt="" style={{ width: 84, height: 84, borderRadius: 14, objectFit: 'cover', border: '1px solid #e5e7eb' }} />
+                  ) : (
+                    <div style={{ width: 84, height: 84, borderRadius: 14, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 28 }}>🖼️</div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <label style={{ padding: '8px 14px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: uploadingImage ? 'wait' : 'pointer', textAlign: 'center' }}>
+                      {uploadingImage ? 'Ανέβασμα...' : (imageUrl ? '📷 Αλλαγή' : '📷 Προσθήκη')}
+                      <input type="file" accept="image/*" onChange={uploadShowImage} style={{ display: 'none' }} disabled={uploadingImage} />
+                    </label>
+                    {imageUrl && (
+                      <button type="button" onClick={() => setImageUrl('')} style={{ padding: '6px 12px', background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 10, fontSize: 12, cursor: 'pointer' }}>✕ Αφαίρεση</button>
+                    )}
+                  </div>
+                </div>
+                <p style={{ color: '#6b7280', fontSize: 12, margin: '6px 0 0 0' }}>Τετράγωνη εικόνα δείχνει καλύτερα. Εμφανίζεται στο Πρόγραμμα της εφαρμογής.</p>
+              </div>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Τίτλος</label>
                 <input type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} style={{ width: '100%', padding: '12px 16px', border: '2px solid #e5e7eb', borderRadius: 12, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} placeholder="Όνομα εκπομπής" />
