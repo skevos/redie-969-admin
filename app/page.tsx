@@ -128,7 +128,7 @@ export default function Dashboard() {
                   <p style={{ margin: '8px 0 0', color: '#E53935', fontSize: 14, fontWeight: 600 }}>
                     {daysGreek[nextShow.day_of_week]} {nextShow.start_time?.slice(0,5)} - {nextShow.end_time?.slice(0,5)}
                   </p>
-                  <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13 }}>με {nextShow.producer_name}</p>
+                  <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13 }}>🎧 {nextShow.producer_name}</p>
                 </div>
               ) : (
                 <div style={{ textAlign: 'center', padding: 30, color: '#9ca3af' }}>

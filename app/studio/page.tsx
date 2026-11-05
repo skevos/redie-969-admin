@@ -478,7 +478,7 @@ export default function StudioChatPage() {
                 <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
                   {daysGreek[nextShow.day_of_week]} {nextShow.start_time?.slice(0,5)} - {nextShow.end_time?.slice(0,5)}
                 </p>
-                <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0 0' }}>με {nextShow.producer_name}</p>
+                <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0 0' }}>🎧 {nextShow.producer_name}</p>
                 {autoMode && (
                   <p style={{ fontSize: 11, color: '#e53935', margin: '8px 0 0 0' }}>
                     ⏰ Chat θα ανοίξει 15' πριν
