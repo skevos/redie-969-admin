@@ -205,6 +205,9 @@ export async function GET(request: Request) {
         closed_at: new Date().toISOString()
       }).eq('id', config.active_room_id);
 
+      // Show is over: clear any "Go Live" mark so the app stops showing LIVE
+      await supabase.from('shows').update({ is_live: false }).eq('is_live', true);
+
       const { data: closedRoom } = await supabase.from('chat_rooms').select('show_name, title').eq('id', config.active_room_id).maybeSingle();
       const closedShow = closedRoom?.show_name || closedRoom?.title || '';
       const msgs = await getAutoMessages();
