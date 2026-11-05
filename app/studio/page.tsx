@@ -4,6 +4,7 @@ import Link from "next/link";
 import Sidebar from "../components/Sidebar";
 import { resolveAutoMessages, fillTemplate } from "../lib/autoMessages";
 import { supabase } from "../lib/supabase";
+import SongRequestsPanel from "../components/SongRequestsPanel";
 
 const CHUNK_SIZE = 300;
 
@@ -486,6 +487,8 @@ export default function StudioChatPage() {
                 )}
               </div>
             )}
+
+            <SongRequestsPanel variant="card" />
 
             <div style={{ background: '#fff7ed', borderRadius: 16, padding: 20, marginBottom: 16, border: reports.length ? '2px solid #f97316' : '1px solid #fed7aa' }}>
               <p style={{ color: '#9a3412', fontSize: 13, fontWeight: 700, marginBottom: 8 }}>🚩 Αναφορές ακροατών {reports.length > 0 && `(${reports.length})`}</p>

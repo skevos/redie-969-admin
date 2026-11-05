@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
+import SongRequestsPanel from "../components/SongRequestsPanel";
 
 export default function ProducerChatPage() {
   const [producer, setProducer] = useState<any>(null);
@@ -204,6 +205,7 @@ export default function ProducerChatPage() {
         ))}
         <div ref={messagesEndRef} />
       </div>
+      <SongRequestsPanel variant="floating" />
       {chatOpen && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #e5e7eb', padding: 20, boxShadow: '0 -2px 8px rgba(0,0,0,0.05)' }}>
           <div style={{ display: 'flex', gap: 12, maxWidth: 900, margin: '0 auto' }}>

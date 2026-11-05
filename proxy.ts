@@ -52,6 +52,9 @@ export async function proxy(request: NextRequest) {
 
   if (isAdmin) return NextResponse.next();
 
+  // Producer-chat endpoints: the route itself checks the producer (or admin) session
+  if (pathname.startsWith('/api/producer/')) return NextResponse.next();
+
   if (pathname.startsWith('/api/')) return unauthorized();
 
   const url = request.nextUrl.clone();
