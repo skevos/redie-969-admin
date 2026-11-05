@@ -22,6 +22,18 @@ interface Producer {
   show_2: string | null;
   chat_color: string | null;
   chat_icon: string | null;
+  hidden_in_app?: boolean;
+}
+
+// All producer reads/writes go through the server (service role), because producers hidden
+// from the app are invisible to the public anon key.
+async function producersApi(body?: any): Promise<any> {
+  const res = await fetch('/api/admin/producers', body
+    ? { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    : { credentials: 'same-origin' });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+  return json;
 }
 
 interface FavoriteCount {
@@ -34,7 +46,7 @@ export default function ProducersPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Producer | null>(null);
   const [isNew, setIsNew] = useState(false);
-  const [form, setForm] = useState({ name: '', bio: '', photo_url: '', username: '', password: '', is_admin: false, show_1: '', show_2: '', chat_color: '#9C27B0', chat_icon: 'headphones' });
+  const [form, setForm] = useState({ name: '', bio: '', photo_url: '', username: '', password: '', is_admin: false, show_1: '', show_2: '', chat_color: '#9C27B0', chat_icon: 'headphones', hidden_in_app: false });
   const [knownUsername, setKnownUsername] = useState<string | null | undefined>(undefined); // undefined = not loaded
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -49,10 +61,12 @@ export default function ProducersPage() {
 
   async function loadProducers() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('producers')
-      .select('id, created_at, name, photo_url, bio, is_admin, is_active, show_1, show_2, chat_color, chat_icon')
-      .order('name');
+    let data: Producer[] | null = null;
+    try {
+      data = (await producersApi())?.producers || [];
+    } catch (e: any) {
+      alert('Σφάλμα φόρτωσης παραγωγών: ' + e.message);
+    }
     if (data) {
       // Usernames come from the server (admin session); passwords never leave the server.
       let usernames: Record<string, string | null> = {};
@@ -116,7 +130,7 @@ export default function ProducersPage() {
     setIsNew(true);
     setEditing(null);
     setKnownUsername(null);
-    setForm({ name: '', bio: '', photo_url: '', username: '', password: '', is_admin: false, show_1: '', show_2: '', chat_color: '#9C27B0', chat_icon: 'headphones' });
+    setForm({ name: '', bio: '', photo_url: '', username: '', password: '', is_admin: false, show_1: '', show_2: '', chat_color: '#9C27B0', chat_icon: 'headphones', hidden_in_app: false });
   }
 
   function openEdit(producer: Producer) {
@@ -133,7 +147,8 @@ export default function ProducersPage() {
       show_1: producer.show_1 || '',
       show_2: producer.show_2 || '',
       chat_color: producer.chat_color || '#9C27B0',
-      chat_icon: producer.chat_icon || 'headphones'
+      chat_icon: producer.chat_icon || 'headphones',
+      hidden_in_app: !!producer.hidden_in_app,
     });
     // Fresh username from the server (password is never returned)
     fetch(`/api/admin/producers/credentials?id=${producer.id}`, { credentials: 'same-origin' })
@@ -145,7 +160,7 @@ export default function ProducersPage() {
   function closeModal() {
     setEditing(null);
     setIsNew(false);
-    setForm({ name: '', bio: '', photo_url: '', username: '', password: '', is_admin: false, show_1: '', show_2: '', chat_color: '#9C27B0', chat_icon: 'headphones' });
+    setForm({ name: '', bio: '', photo_url: '', username: '', password: '', is_admin: false, show_1: '', show_2: '', chat_color: '#9C27B0', chat_icon: 'headphones', hidden_in_app: false });
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -180,7 +195,9 @@ export default function ProducersPage() {
     setSaving(true);
 
     if (isNew) {
-      const { data: created, error } = await supabase.from('producers').insert({
+      let created: { id: number } | null = null;
+      let error: { message: string } | null = null;
+      try { created = { id: (await producersApi({ op: 'insert', data: {
         name: form.name,
         bio: form.bio || null,
         photo_url: form.photo_url || null,
@@ -189,7 +206,8 @@ export default function ProducersPage() {
         show_2: form.show_2 || null,
         chat_color: form.chat_color || '#9C27B0',
         chat_icon: form.chat_icon || 'headphones',
-      }).select('id').single();
+        hidden_in_app: form.hidden_in_app,
+      } })).id }; } catch (e: any) { error = { message: e.message }; }
       if (error) { alert('Σφάλμα: ' + error.message); setSaving(false); return; }
       if (created && (form.username.trim() || form.password)) {
         const credErr = await saveCredentials(created.id, form.username, form.password);
@@ -206,9 +224,9 @@ export default function ProducersPage() {
         chat_color: form.chat_color || '#9C27B0',
         chat_icon: form.chat_icon || 'headphones',
       };
-      const { error } = await supabase.from('producers')
-        .update(updateData)
-        .eq('id', editing.id);
+      if (form.hidden_in_app !== !!editing.hidden_in_app) updateData.hidden_in_app = form.hidden_in_app;
+      let error: { message: string } | null = null;
+      try { await producersApi({ op: 'update', id: editing.id, data: updateData }); } catch (e: any) { error = { message: e.message }; }
       if (error) { alert('Σφάλμα: ' + error.message); setSaving(false); return; }
       const credErr = await saveCredentials(editing.id, form.username, form.password);
       if (credErr) { alert('Σφάλμα: ' + credErr); setSaving(false); return; }
@@ -221,8 +239,16 @@ export default function ProducersPage() {
 
   async function handleDelete(id: number) {
     if (!confirm('Διαγραφή παραγωγού;')) return;
-    const { error } = await supabase.from('producers').delete().eq('id', id);
-    if (error) alert('Σφάλμα διαγραφής: ' + error.message);
+    try { await producersApi({ op: 'delete', id }); } catch (e: any) { alert('Σφάλμα διαγραφής: ' + e.message); }
+    loadProducers();
+  }
+
+  async function toggleHidden(producer: Producer) {
+    try {
+      await producersApi({ op: 'update', id: producer.id, data: { hidden_in_app: !producer.hidden_in_app } });
+    } catch (e: any) {
+      alert('Σφάλμα: ' + e.message);
+    }
     loadProducers();
   }
 
@@ -382,6 +408,9 @@ export default function ProducersPage() {
                         {producer.username ? `🔐 @${producer.username}` : '⚠️ Χωρίς login'}
                         {producer.is_admin && ' • 👑 Admin'}
                       </p>
+                      {producer.hidden_in_app && (
+                        <p style={{ margin: '4px 0 0', fontSize: 11, color: '#6b7280', fontWeight: 600 }}>🙈 Κρυφός στην εφαρμογή · μπαίνει κανονικά στο chat</p>
+                      )}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 16, paddingTop: 16, borderTop: '1px solid #f3f4f6' }}>
@@ -400,6 +429,22 @@ export default function ProducersPage() {
                       }}
                     >
                       ✏️ Επεξεργασία
+                    </button>
+                    <button
+                      onClick={() => toggleHidden(producer)}
+                      title={producer.hidden_in_app ? 'Εμφάνιση στην εφαρμογή' : 'Απόκρυψη από την εφαρμογή (το chat δουλεύει κανονικά)'}
+                      style={{
+                        padding: '8px 12px',
+                        background: producer.hidden_in_app ? '#e5e7eb' : '#ecfdf5',
+                        color: producer.hidden_in_app ? '#4b5563' : '#047857',
+                        border: 'none',
+                        borderRadius: 8,
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {producer.hidden_in_app ? '🙈 Κρυφός' : '👁️ Ορατός'}
                     </button>
                     <button
                       onClick={() => handleDelete(producer.id)}
@@ -531,6 +576,15 @@ export default function ProducersPage() {
                   style={{ width: 18, height: 18 }}
                 />
                 <span style={{ fontSize: 14, color: '#374151' }}>👑 Admin δικαιώματα</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={form.hidden_in_app}
+                  onChange={e => setForm({ ...form, hidden_in_app: e.target.checked })}
+                  style={{ width: 18, height: 18 }}
+                />
+                <span style={{ fontSize: 14, color: '#374151' }}>🙈 Να μη φαίνεται στην εφαρμογή (το chat δουλεύει κανονικά)</span>
               </label>
             </div>
 

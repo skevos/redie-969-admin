@@ -72,10 +72,12 @@ export default function UsersPage() {
       console.error('Users load error:', e?.message);
     }
     
-    const { data: producersData } = await supabase
-      .from('producers')
-      .select('id, name')
-      .order('name');
+    // Via the server so producers hidden from the app are still listed here
+    let producersData: any[] = [];
+    try {
+      const r = await fetch('/api/admin/producers', { credentials: 'same-origin' });
+      if (r.ok) producersData = ((await r.json())?.producers || []).map((p: any) => ({ id: p.id, name: p.name }));
+    } catch {}
 
     setUsers(usersData || []);
     setProducers(producersData || []);
