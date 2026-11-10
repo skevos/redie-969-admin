@@ -10,6 +10,8 @@ export default function ContentPage() {
   
   const [nowPlaying, setNowPlaying] = useState('REDIE 969 Live');
   const [metadataEnabled, setMetadataEnabled] = useState(false);
+  const [adKeywords, setAdKeywords] = useState('');
+  const [adText, setAdText] = useState('📢 Διαφημίσεις · Μένετε συντονισμένοι στον REDIE 969');
   const [radioNow, setRadioNow] = useState<{ title: string; artwork: string; history: string[]; error?: string } | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [announcementActive, setAnnouncementActive] = useState(false);
@@ -55,6 +57,18 @@ export default function ContentPage() {
     return () => { alive = false; clearInterval(t); };
   }, []);
 
+  // Same rule as the app: lower-case, Greek accents removed, "contains"
+  const plain = (v: string) => v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const adWords = adKeywords.split(',').map(w => plain(w.trim())).filter(Boolean);
+  const isAdNow = !!radioNow?.title && adWords.some(w => plain(radioNow!.title).includes(w));
+  const appShows = !metadataEnabled || !radioNow?.title ? nowPlaying : isAdNow ? (adText.trim() || nowPlaying) : radioNow.title;
+
+  async function saveAdSettings() {
+    setSaving('ads');
+    const { error } = await supabase.from('settings').update({ metadata_ad_keywords: adKeywords, metadata_ad_text: adText, updated_at: new Date().toISOString() }).eq('id', 1);
+    finishSave(error);
+  }
+
   async function toggleMetadata() {
     const next = !metadataEnabled;
     setSaving('metadata');
@@ -70,6 +84,8 @@ export default function ContentPage() {
       if (data) {
         setNowPlaying(data.now_playing || 'REDIE 969 Live');
         setMetadataEnabled(data.metadata_enabled === true);
+        if (typeof data.metadata_ad_keywords === 'string') setAdKeywords(data.metadata_ad_keywords);
+        if (typeof data.metadata_ad_text === 'string' && data.metadata_ad_text.trim()) setAdText(data.metadata_ad_text);
         setAnnouncement(data.announcement || '');
         setAnnouncementActive(data.announcement_active || false);
         setAnnouncementUrl(data.announcement_url || '');
@@ -225,6 +241,20 @@ export default function ContentPage() {
               <button onClick={toggleMetadata} disabled={saving === 'metadata'} style={{ padding: '10px 16px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', color: 'white', background: metadataEnabled ? '#22c55e' : '#6b7280', flexShrink: 0 }}>
                 {metadataEnabled ? '🟢 ΕΝΕΡΓΟ' : '⚪ ΑΝΕΝΕΡΓΟ'}
               </button>
+            </div>
+
+            {/* Ads: show a message instead of the ad's title */}
+            <div style={{ padding: '14px 16px', borderRadius: 14, marginBottom: 18, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <p style={{ color: 'white', fontWeight: 700, fontSize: 14, margin: '0 0 4px' }}>📢 Όταν παίζουν διαφημίσεις</p>
+              <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, margin: '0 0 12px' }}>Αν ο τίτλος στο Radio.co περιέχει μία από αυτές τις λέξεις, η εφαρμογή δείχνει το μήνυμα αντί για τον τίτλο (χωρίς εξώφυλλο). Δεν μετράνε κεφαλαία και τόνοι.</p>
+              <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, display: 'block', marginBottom: 6 }}>Λέξεις διαφήμισης (με κόμμα)</label>
+              <input type="text" value={adKeywords} onChange={e => setAdKeywords(e.target.value)} placeholder="π.χ. SPOT, ΔΙΑΦΗΜΙΣΗ, ADV" style={{ width: '100%', padding: '11px 14px', border: '2px solid rgba(255,255,255,0.12)', borderRadius: 10, fontSize: 14, background: 'rgba(255,255,255,0.05)', color: 'white', marginBottom: 12, boxSizing: 'border-box' }} />
+              <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, display: 'block', marginBottom: 6 }}>Μήνυμα που βλέπουν οι ακροατές</label>
+              <input type="text" value={adText} onChange={e => setAdText(e.target.value)} style={{ width: '100%', padding: '11px 14px', border: '2px solid rgba(255,255,255,0.12)', borderRadius: 10, fontSize: 14, background: 'rgba(255,255,255,0.05)', color: 'white', marginBottom: 12, boxSizing: 'border-box' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <button onClick={saveAdSettings} style={{ padding: '10px 20px', background: saving === 'ads' ? '#22c55e' : 'linear-gradient(135deg, #e53935, #c62828)', color: 'white', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{saving === 'ads' ? '✓ Saved!' : '💾 Αποθήκευση'}</button>
+                <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>Τώρα η εφαρμογή δείχνει: <b style={{ color: isAdNow ? '#fbbf24' : 'white' }}>{appShows}</b>{isAdNow ? ' (διαφήμιση)' : ''}</span>
+              </div>
             </div>
             <input type="text" value={nowPlaying} onChange={e => setNowPlaying(e.target.value)} style={{ width: '100%', padding: '14px 18px', border: '2px solid rgba(229,57,53,0.3)', borderRadius: 12, fontSize: 15, background: 'rgba(255,255,255,0.05)', color: 'white', marginBottom: 16, boxSizing: 'border-box' }} />
             <button onClick={saveNowPlaying} style={{ padding: '12px 24px', background: saving === 'nowplaying' ? '#22c55e' : 'linear-gradient(135deg, #e53935, #c62828)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer' }}>{saving === 'nowplaying' ? '✓ Saved!' : '🎵 Update'}</button>

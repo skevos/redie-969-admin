@@ -3,6 +3,14 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import Sidebar from "../components/Sidebar";
 
+
+// countdown_end is written as UTC; when the column has no time zone it comes back without "Z",
+// which the browser would read as local time. Always read it as UTC.
+function utcDate(v: string) {
+  const s = String(v || '').trim();
+  return new Date(/(Z|[+-]\d{2}(:?\d{2})?)$/.test(s) ? s : s.replace(' ', 'T') + 'Z');
+}
+
 export default function PollsPage() {
   const [polls, setPolls] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +49,7 @@ export default function PollsPage() {
       const next: { [key: number]: string } = {};
       polls.forEach((poll) => {
         if (!poll.countdown_end) return;
-        const diff = new Date(poll.countdown_end).getTime() - Date.now();
+        const diff = utcDate(poll.countdown_end).getTime() - Date.now();
         if (diff > 0) {
           const h = Math.floor(diff / 3600000);
           const m = Math.floor((diff % 3600000) / 60000);
@@ -117,7 +125,7 @@ export default function PollsPage() {
       await supabase.from("polls").update({ is_active: false, countdown_end: null }).neq("id", poll.id);
       const minutes = countdownInput[poll.id] || 0;
       const existingEndValid =
-        !!poll.countdown_end && new Date(poll.countdown_end).getTime() > Date.now();
+        !!poll.countdown_end && utcDate(poll.countdown_end).getTime() > Date.now();
       const countdown_end =
         minutes > 0
           ? new Date(Date.now() + minutes * 60000).toISOString()
