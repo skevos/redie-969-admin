@@ -9,6 +9,8 @@ export default function ContentPage() {
   const [loading, setLoading] = useState(true);
   
   const [nowPlaying, setNowPlaying] = useState('REDIE 969 Live');
+  const [metadataEnabled, setMetadataEnabled] = useState(false);
+  const [radioNow, setRadioNow] = useState<{ title: string; artwork: string; history: string[]; error?: string } | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [announcementActive, setAnnouncementActive] = useState(false);
   const [announcementUrl, setAnnouncementUrl] = useState('');
@@ -35,12 +37,39 @@ export default function ContentPage() {
 
   useEffect(() => { loadSettings(); loadChatSponsor(); }, []);
 
+  // Live preview of the Radio.co track (refreshes every 20s, like the app)
+  useEffect(() => {
+    let alive = true;
+    async function loadRadio() {
+      try {
+        const r = await fetch('/api/now-playing', { credentials: 'same-origin', cache: 'no-store' });
+        const d = await r.json();
+        if (!alive) return;
+        setRadioNow(r.ok ? { title: d.title || '', artwork: d.artwork || '', history: d.history || [] } : { title: '', artwork: '', history: [], error: d?.error || `HTTP ${r.status}` });
+      } catch (e: any) {
+        if (alive) setRadioNow({ title: '', artwork: '', history: [], error: e.message });
+      }
+    }
+    loadRadio();
+    const t = setInterval(loadRadio, 20000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  async function toggleMetadata() {
+    const next = !metadataEnabled;
+    setSaving('metadata');
+    const { error } = await supabase.from('settings').update({ metadata_enabled: next, updated_at: new Date().toISOString() }).eq('id', 1);
+    if (!error) setMetadataEnabled(next);
+    finishSave(error);
+  }
+
   async function loadSettings() {
     setLoading(true);
     try {
       const { data } = await supabase.from('settings').select('*').eq('id', 1).single();
       if (data) {
         setNowPlaying(data.now_playing || 'REDIE 969 Live');
+        setMetadataEnabled(data.metadata_enabled === true);
         setAnnouncement(data.announcement || '');
         setAnnouncementActive(data.announcement_active || false);
         setAnnouncementUrl(data.announcement_url || '');
@@ -180,6 +209,23 @@ export default function ContentPage() {
           <div style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', borderRadius: 20, padding: 28, marginBottom: 24 }}>
             <h2 style={{ fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 8 }}>🎵 Now Playing <span style={{ background: '#22c55e', color: 'white', fontSize: 10, padding: '4px 8px', borderRadius: 20 }}>LIVE</span></h2>
             <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 20 }}>Εμφανίζεται στους ακροατές κάτω από το logo</p>
+
+            {/* Automatic title from Radio.co */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 14, marginBottom: 18, background: metadataEnabled ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.05)', border: `1px solid ${metadataEnabled ? 'rgba(34,197,94,0.45)' : 'rgba(255,255,255,0.1)'}` }}>
+              {radioNow?.artwork ? <img src={radioNow.artwork} alt="" style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} /> : <div style={{ width: 48, height: 48, borderRadius: 10, background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>📡</div>}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ color: 'white', fontWeight: 700, fontSize: 14, margin: 0 }}>📡 Αυτόματος τίτλος από Radio.co</p>
+                <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '3px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {radioNow == null ? 'Φόρτωση...' : radioNow.error ? `Δεν απαντά το Radio.co (${radioNow.error})` : radioNow.title ? `Τώρα: ${radioNow.title}` : 'Το Radio.co δεν στέλνει τίτλο αυτή τη στιγμή'}
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, margin: '3px 0 0' }}>
+                  {metadataEnabled ? 'ΕΝΕΡΓΟ: η εφαρμογή δείχνει τον τίτλο του τραγουδιού (από 1.0.9). Αν δεν υπάρχει τίτλος, δείχνει το κείμενο από κάτω.' : 'ΑΝΕΝΕΡΓΟ: η εφαρμογή δείχνει το κείμενο από κάτω.'}
+                </p>
+              </div>
+              <button onClick={toggleMetadata} disabled={saving === 'metadata'} style={{ padding: '10px 16px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', color: 'white', background: metadataEnabled ? '#22c55e' : '#6b7280', flexShrink: 0 }}>
+                {metadataEnabled ? '🟢 ΕΝΕΡΓΟ' : '⚪ ΑΝΕΝΕΡΓΟ'}
+              </button>
+            </div>
             <input type="text" value={nowPlaying} onChange={e => setNowPlaying(e.target.value)} style={{ width: '100%', padding: '14px 18px', border: '2px solid rgba(229,57,53,0.3)', borderRadius: 12, fontSize: 15, background: 'rgba(255,255,255,0.05)', color: 'white', marginBottom: 16, boxSizing: 'border-box' }} />
             <button onClick={saveNowPlaying} style={{ padding: '12px 24px', background: saving === 'nowplaying' ? '#22c55e' : 'linear-gradient(135deg, #e53935, #c62828)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer' }}>{saving === 'nowplaying' ? '✓ Saved!' : '🎵 Update'}</button>
           </div>
