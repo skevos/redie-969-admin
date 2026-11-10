@@ -27,6 +27,8 @@ export default function RequestsPage() {
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
   const [setupNeeded, setSetupNeeded] = useState(false);
+  const [likes, setLikes] = useState<{ total: number; top: { title: string; likes: number }[]; setupNeeded?: boolean } | null>(null);
+  const [likesDays, setLikesDays] = useState(7);
 
   async function load() {
     try {
@@ -43,6 +45,21 @@ export default function RequestsPage() {
   }
 
   useEffect(() => { setLoading(true); load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [days]);
+
+  // ❤️ most loved songs (likes from the app)
+  useEffect(() => {
+    let alive = true;
+    async function loadLikes() {
+      try {
+        const r = await fetch(`/api/admin/song-likes?days=${likesDays}`, { credentials: 'same-origin', cache: 'no-store' });
+        const d = await r.json();
+        if (alive && r.ok) setLikes(d);
+      } catch {}
+    }
+    loadLikes();
+    const t = setInterval(loadLikes, 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, [likesDays]);
 
   async function toggleOpen() {
     const r = await fetch('/api/producer/song-requests', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'open', open: !open }) });
@@ -129,6 +146,32 @@ export default function RequestsPage() {
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                 {topList('🔥 Πιο ζητημένα', stats.topRequested)}
                 {topList('✅ Πιο πολύ παιγμένα', stats.topPlayed)}
+              </div>
+              <div style={{ ...card }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <p style={{ margin: 0, fontWeight: 700, color: '#1f2937', marginRight: 'auto' }}>❤️ Πιο αγαπημένα τραγούδια {likes ? <span style={{ fontWeight: 500, color: '#6b7280', fontSize: 13 }}>· {likes.total} «μου αρέσει»</span> : null}</p>
+                  <select value={likesDays} onChange={e => setLikesDays(Number(e.target.value))} style={{ padding: '6px 10px', borderRadius: 10, border: '2px solid #e5e7eb', fontSize: 12 }}>
+                    <option value={1}>Σήμερα</option>
+                    <option value={7}>7 ημέρες</option>
+                    <option value={30}>30 ημέρες</option>
+                    <option value={365}>1 χρόνος</option>
+                  </select>
+                </div>
+                {likes?.setupNeeded ? <p style={{ color: '#b45309', fontSize: 13, margin: 0 }}>Χρειάζεται το SQL για τα «μου αρέσει».</p>
+                  : !likes || likes.top.length === 0 ? <p style={{ color: '#9ca3af', fontSize: 13, margin: 0 }}>Δεν υπάρχουν ακόμα «μου αρέσει». Οι ακροατές πατάνε ❤️ δίπλα στον τίτλο του τραγουδιού (από την έκδοση 1.0.9).</p>
+                  : likes.top.map((t, i) => {
+                      const max = likes.top[0].likes || 1;
+                      return (
+                        <div key={t.title + i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
+                          <span style={{ width: 22, height: 22, borderRadius: 6, background: i < 3 ? '#e11d48' : '#e5e7eb', color: i < 3 ? 'white' : '#374151', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</div>
+                            <div style={{ height: 4, borderRadius: 4, background: '#ffe4e6', marginTop: 4 }}><div style={{ width: `${Math.max(6, (t.likes / max) * 100)}%`, height: 4, borderRadius: 4, background: '#e11d48' }} /></div>
+                          </div>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#e11d48', flexShrink: 0 }}>❤️ {t.likes}</span>
+                        </div>
+                      );
+                    })}
               </div>
             </div>
           </div>
