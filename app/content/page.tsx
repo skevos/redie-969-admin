@@ -11,6 +11,8 @@ export default function ContentPage() {
   const [nowPlaying, setNowPlaying] = useState('REDIE 969 Live');
   const [metadataEnabled, setMetadataEnabled] = useState(false);
   const [adKeywords, setAdKeywords] = useState('');
+  const [showInNowPlaying, setShowInNowPlaying] = useState(true);
+  const [onAirShow, setOnAirShow] = useState<{ title: string; producer_name: string | null } | null>(null);
   const [adText, setAdText] = useState('📢 Διαφημίσεις · Μένετε συντονισμένοι στον REDIE 969');
   const [radioNow, setRadioNow] = useState<{ title: string; artwork: string; history: string[]; error?: string } | null>(null);
   const [announcement, setAnnouncement] = useState('');
@@ -61,11 +63,49 @@ export default function ContentPage() {
   const plain = (v: string) => v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const adWords = adKeywords.split(',').map(w => plain(w.trim())).filter(Boolean);
   const isAdNow = !!radioNow?.title && adWords.some(w => plain(radioNow!.title).includes(w));
-  const appShows = !metadataEnabled || !radioNow?.title ? nowPlaying : isAdNow ? (adText.trim() || nowPlaying) : radioNow.title;
+  const appShowsTrack = !metadataEnabled || !radioNow?.title ? nowPlaying : isAdNow ? (adText.trim() || nowPlaying) : radioNow.title;
 
   async function saveAdSettings() {
     setSaving('ads');
     const { error } = await supabase.from('settings').update({ metadata_ad_keywords: adKeywords, metadata_ad_text: adText, updated_at: new Date().toISOString() }).eq('id', 1);
+    finishSave(error);
+  }
+
+  // Show on air now (Greek time, same rule as the app: day_of_week 0 = Monday, slots may cross midnight)
+  useEffect(() => {
+    let alive = true;
+    async function loadOnAir() {
+      const { data } = await supabase.from('shows').select('title, producer_name, day_of_week, start_time, end_time, is_live');
+      if (!alive || !data) return;
+      const live = data.find((r: any) => r.is_live);
+      if (live) { setOnAirShow(live); return; }
+      const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Athens', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+      const get = (t: string) => parts.find(p => p.type === t)?.value || '';
+      const today = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(get('weekday'));
+      const now = (Number(get('hour')) % 24) * 60 + Number(get('minute'));
+      const mins = (t: string) => { const [h, m] = String(t || '').split(':').map(Number); return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null; };
+      let found: any = null;
+      for (const r of data as any[]) {
+        const start = mins(r.start_time); let end = mins(r.end_time);
+        if (start == null || end == null) continue;
+        if (end <= start) end += 1440;
+        if (r.day_of_week === today && now >= start && now < end) { found = r; break; }
+        if (end > 1440 && r.day_of_week === (today + 6) % 7 && now + 1440 < end) { found = r; break; }
+      }
+      setOnAirShow(found);
+    }
+    loadOnAir();
+    const t = setInterval(loadOnAir, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  const showText = showInNowPlaying && onAirShow?.title ? `🎙️ ${onAirShow.title.trim()}${onAirShow.producer_name?.trim() ? ' · ' + onAirShow.producer_name.trim() : ''}` : null;
+
+  async function toggleShowInNowPlaying() {
+    const next = !showInNowPlaying;
+    setSaving('showplaying');
+    const { error } = await supabase.from('settings').update({ show_in_now_playing: next, updated_at: new Date().toISOString() }).eq('id', 1);
+    if (!error) setShowInNowPlaying(next);
     finishSave(error);
   }
 
@@ -84,6 +124,7 @@ export default function ContentPage() {
       if (data) {
         setNowPlaying(data.now_playing || 'REDIE 969 Live');
         setMetadataEnabled(data.metadata_enabled === true);
+        setShowInNowPlaying(data.show_in_now_playing !== false);
         if (typeof data.metadata_ad_keywords === 'string') setAdKeywords(data.metadata_ad_keywords);
         if (typeof data.metadata_ad_text === 'string' && data.metadata_ad_text.trim()) setAdText(data.metadata_ad_text);
         setAnnouncement(data.announcement || '');
@@ -226,6 +267,23 @@ export default function ContentPage() {
             <h2 style={{ fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 8 }}>🎵 Now Playing <span style={{ background: '#22c55e', color: 'white', fontSize: 10, padding: '4px 8px', borderRadius: 20 }}>LIVE</span></h2>
             <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 20 }}>Εμφανίζεται στους ακροατές κάτω από το logo</p>
 
+            {/* Show on air in Now Playing */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 14, marginBottom: 12, background: showInNowPlaying ? 'rgba(59,130,246,0.14)' : 'rgba(255,255,255,0.05)', border: `1px solid ${showInNowPlaying ? 'rgba(59,130,246,0.45)' : 'rgba(255,255,255,0.1)'}` }}>
+              <div style={{ width: 48, height: 48, borderRadius: 10, background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>🎙️</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ color: 'white', fontWeight: 700, fontSize: 14, margin: 0 }}>🎙️ Εκπομπή στο Now Playing</p>
+                <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '3px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {onAirShow?.title ? `Τώρα στον αέρα: ${onAirShow.title}${onAirShow.producer_name ? ' · ' + onAirShow.producer_name : ''}` : 'Καμία εκπομπή αυτή τη στιγμή (ώρα Ελλάδας)'}
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, margin: '3px 0 0' }}>
+                  {showInNowPlaying ? 'ΕΝΕΡΓΟ: όσο παίζει εκπομπή του προγράμματος, η εφαρμογή γράφει «🎙️ Εκπομπή · Παραγωγός» (από 1.0.9). Μετά γυρνάει στον τίτλο τραγουδιού.' : 'ΑΝΕΝΕΡΓΟ: δείχνει πάντα τον τίτλο τραγουδιού / το κείμενο.'}
+                </p>
+              </div>
+              <button onClick={toggleShowInNowPlaying} disabled={saving === 'showplaying'} style={{ padding: '10px 16px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', color: 'white', background: showInNowPlaying ? '#3b82f6' : '#6b7280', flexShrink: 0 }}>
+                {showInNowPlaying ? '🔵 ΕΝΕΡΓΟ' : '⚪ ΑΝΕΝΕΡΓΟ'}
+              </button>
+            </div>
+
             {/* Automatic title from Radio.co */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 14, marginBottom: 18, background: metadataEnabled ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.05)', border: `1px solid ${metadataEnabled ? 'rgba(34,197,94,0.45)' : 'rgba(255,255,255,0.1)'}` }}>
               {radioNow?.artwork ? <img src={radioNow.artwork} alt="" style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} /> : <div style={{ width: 48, height: 48, borderRadius: 10, background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>📡</div>}
@@ -253,7 +311,7 @@ export default function ContentPage() {
               <input type="text" value={adText} onChange={e => setAdText(e.target.value)} style={{ width: '100%', padding: '11px 14px', border: '2px solid rgba(255,255,255,0.12)', borderRadius: 10, fontSize: 14, background: 'rgba(255,255,255,0.05)', color: 'white', marginBottom: 12, boxSizing: 'border-box' }} />
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <button onClick={saveAdSettings} style={{ padding: '10px 20px', background: saving === 'ads' ? '#22c55e' : 'linear-gradient(135deg, #e53935, #c62828)', color: 'white', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{saving === 'ads' ? '✓ Saved!' : '💾 Αποθήκευση'}</button>
-                <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>Τώρα η εφαρμογή δείχνει: <b style={{ color: isAdNow ? '#fbbf24' : 'white' }}>{appShows}</b>{isAdNow ? ' (διαφήμιση)' : ''}</span>
+                <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>Τώρα η εφαρμογή δείχνει: <b style={{ color: showText ? '#93c5fd' : isAdNow ? '#fbbf24' : 'white' }}>{showText || appShowsTrack}</b>{showText ? ' (εκπομπή)' : isAdNow ? ' (διαφήμιση)' : ''}</span>
               </div>
             </div>
             <input type="text" value={nowPlaying} onChange={e => setNowPlaying(e.target.value)} style={{ width: '100%', padding: '14px 18px', border: '2px solid rgba(229,57,53,0.3)', borderRadius: 12, fontSize: 15, background: 'rgba(255,255,255,0.05)', color: 'white', marginBottom: 16, boxSizing: 'border-box' }} />
