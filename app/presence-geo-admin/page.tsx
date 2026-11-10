@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { adminDb, adminUpload } from '../lib/adminDb';
 import Sidebar from "../components/Sidebar";
 
 const supabase = createClient(
@@ -62,7 +63,7 @@ export default function PresenceGeoAdminPage() {
   };
 
   const updateBoost = async (id: string, boost_listeners: number) => {
-    await supabase
+    await adminDb
       .from('presence_geo_boost')
       .update({ boost_listeners, updated_at: new Date().toISOString() })
       .eq('id', id);
@@ -79,7 +80,7 @@ export default function PresenceGeoAdminPage() {
   };
 
   const toggleActive = async (id: string, is_active: boolean) => {
-    await supabase
+    await adminDb
       .from('presence_geo_boost')
       .update({ is_active: !is_active })
       .eq('id', id);
@@ -88,7 +89,7 @@ export default function PresenceGeoAdminPage() {
 
   const addCity = async () => {
     if (!newCity.city) return;
-    await supabase.from('presence_geo_boost').insert({
+    await adminDb.from('presence_geo_boost').insert({
       country_code: newCity.country_code,
       country: newCity.country,
       city: newCity.city,
@@ -102,7 +103,7 @@ export default function PresenceGeoAdminPage() {
 
   const deleteCity = async (id: string) => {
     if (!confirm('Διαγραφή;')) return;
-    await supabase.from('presence_geo_boost').delete().eq('id', id);
+    await adminDb.from('presence_geo_boost').delete().eq('id', id);
     loadBoosts();
   };
 

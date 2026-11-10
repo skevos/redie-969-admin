@@ -4,6 +4,7 @@ import Sidebar from "../components/Sidebar";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 
+import { adminDb, adminUpload } from '../lib/adminDb';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -56,18 +57,15 @@ export default function SplashPage() {
     const fileExt = file.name.split('.').pop();
     const fileName = `splash_logo_${Date.now()}.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('splash')
-      .upload(fileName, file);
+    const up = await adminUpload('splash', fileName, file);
 
-    if (uploadError) {
-      alert('Σφάλμα upload: ' + uploadError.message);
+    if (up.error || !up.publicUrl) {
+      alert('Σφάλμα upload: ' + (up.error?.message || ''));
       setUploading(false);
       return;
     }
 
-    const { data } = supabase.storage.from('splash').getPublicUrl(fileName);
-    setConfig(prev => ({ ...prev, logo_url: data.publicUrl }));
+    setConfig(prev => ({ ...prev, logo_url: up.publicUrl! }));
     setUploading(false);
   }
 
@@ -77,7 +75,7 @@ export default function SplashPage() {
       return;
     }
     setSavingField(field);
-    const { error } = await supabase
+    const { error } = await adminDb
       .from('splash_config')
       .update({ [field]: value, updated_at: new Date().toISOString() })
       .eq('id', 1);
@@ -95,7 +93,7 @@ export default function SplashPage() {
     if (!confirm('Επαναφορά στις προεπιλεγμένες ρυθμίσεις;')) return;
     
     setSavingField('reset');
-    const { error } = await supabase
+    const { error } = await adminDb
       .from('splash_config')
       .update({
         ...DEFAULT_CONFIG,
@@ -288,7 +286,7 @@ export default function SplashPage() {
                   <button
                     onClick={async () => {
                       setSavingField('tagline');
-                      await supabase.from('splash_config').update({ 
+                      await adminDb.from('splash_config').update({ 
                         tagline: config.tagline || null, 
                         show_tagline: config.show_tagline,
                         updated_at: new Date().toISOString() 

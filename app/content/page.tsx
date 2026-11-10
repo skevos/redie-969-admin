@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { adminDb, adminUpload } from '../lib/adminDb';
 import Sidebar from "../components/Sidebar";
 import { AUTO_MESSAGE_DEFAULTS, resolveAutoMessages } from "../lib/autoMessages";
 
@@ -69,7 +70,7 @@ export default function ContentPage() {
 
   async function saveAdSettings() {
     setSaving('ads');
-    const { error } = await supabase.from('settings').update({ metadata_ad_keywords: adKeywords, metadata_ad_text: adText, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await adminDb.from('settings').update({ metadata_ad_keywords: adKeywords, metadata_ad_text: adText, updated_at: new Date().toISOString() }).eq('id', 1);
     finishSave(error);
   }
 
@@ -106,7 +107,7 @@ export default function ContentPage() {
   async function toggleShowInNowPlaying() {
     const next = !showInNowPlaying;
     setSaving('showplaying');
-    const { error } = await supabase.from('settings').update({ show_in_now_playing: next, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await adminDb.from('settings').update({ show_in_now_playing: next, updated_at: new Date().toISOString() }).eq('id', 1);
     if (!error) setShowInNowPlaying(next);
     finishSave(error);
   }
@@ -115,7 +116,7 @@ export default function ContentPage() {
     const current = features[key] ?? defaultOn;
     const next = !current;
     setSaving('f_' + key);
-    const { error } = await supabase.from('settings').update({ [key]: next, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await adminDb.from('settings').update({ [key]: next, updated_at: new Date().toISOString() }).eq('id', 1);
     if (!error) setFeatures(f => ({ ...f, [key]: next }));
     finishSave(error);
   }
@@ -123,7 +124,7 @@ export default function ContentPage() {
   async function toggleMetadata() {
     const next = !metadataEnabled;
     setSaving('metadata');
-    const { error } = await supabase.from('settings').update({ metadata_enabled: next, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await adminDb.from('settings').update({ metadata_enabled: next, updated_at: new Date().toISOString() }).eq('id', 1);
     if (!error) setMetadataEnabled(next);
     finishSave(error);
   }
@@ -204,14 +205,14 @@ export default function ContentPage() {
 
   async function saveNowPlaying() {
     setSaving('nowplaying');
-    const { error } = await supabase.from('settings').update({ now_playing: nowPlaying, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await adminDb.from('settings').update({ now_playing: nowPlaying, updated_at: new Date().toISOString() }).eq('id', 1);
     finishSave(error);
   }
 
   async function saveAnnouncement() {
     if (!checkUrls(announcementUrl)) return;
     setSaving('announcement');
-    const { error } = await supabase.from('settings').update({ 
+    const { error } = await adminDb.from('settings').update({ 
       announcement, announcement_active: announcementActive, announcement_url: announcementUrl, announcement_url_active: announcementUrlActive,
       updated_at: new Date().toISOString() 
     }).eq('id', 1);
@@ -220,7 +221,7 @@ export default function ContentPage() {
 
   async function saveListenerCount() {
     setSaving('listener');
-    const { error } = await supabase.from('settings').update({ show_listener_count: showListenerCount, listener_count_base: listenerCountBase, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await adminDb.from('settings').update({ show_listener_count: showListenerCount, listener_count_base: listenerCountBase, updated_at: new Date().toISOString() }).eq('id', 1);
     finishSave(error);
   }
 
@@ -230,9 +231,9 @@ export default function ContentPage() {
     const { data } = await supabase.from('chat_sponsored_messages').select('id').limit(1).single();
     let error: any = null;
     if (data) {
-      ({ error } = await supabase.from('chat_sponsored_messages').update({ message: chatSponsorMessage, sponsor_name: chatSponsorName, is_active: chatSponsorActive, sponsor_url: chatSponsorUrl, sponsor_url_active: chatSponsorUrlActive }).eq('id', data.id));
+      ({ error } = await adminDb.from('chat_sponsored_messages').update({ message: chatSponsorMessage, sponsor_name: chatSponsorName, is_active: chatSponsorActive, sponsor_url: chatSponsorUrl, sponsor_url_active: chatSponsorUrlActive }).eq('id', data.id));
     } else {
-      ({ error } = await supabase.from('chat_sponsored_messages').insert({ message: chatSponsorMessage, sponsor_name: chatSponsorName, is_active: chatSponsorActive, sponsor_url: chatSponsorUrl, sponsor_url_active: chatSponsorUrlActive }));
+      ({ error } = await adminDb.from('chat_sponsored_messages').insert({ message: chatSponsorMessage, sponsor_name: chatSponsorName, is_active: chatSponsorActive, sponsor_url: chatSponsorUrl, sponsor_url_active: chatSponsorUrlActive }));
     }
     finishSave(error);
   }
@@ -240,27 +241,27 @@ export default function ContentPage() {
   async function saveSocialLinks() {
     if (!checkUrls(socialLinks.facebook_url, socialLinks.instagram_url, socialLinks.tiktok_url, socialLinks.youtube_url)) return;
     setSaving('social');
-    const { error } = await supabase.from('settings').update({ ...socialLinks, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await adminDb.from('settings').update({ ...socialLinks, updated_at: new Date().toISOString() }).eq('id', 1);
     finishSave(error);
   }
 
   async function saveShareSettings() {
     if (!checkUrls(androidStoreUrl, iosStoreUrl)) return;
     setSaving('share');
-    const { error } = await supabase.from('settings').update({ share_message: shareMessage, android_store_url: androidStoreUrl, ios_store_url: iosStoreUrl, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await adminDb.from('settings').update({ share_message: shareMessage, android_store_url: androidStoreUrl, ios_store_url: iosStoreUrl, updated_at: new Date().toISOString() }).eq('id', 1);
     finishSave(error);
   }
 
   async function saveAutoMessages() {
     setSaving('automsgs');
-    const { error } = await supabase.from('settings').update({ ...autoMsgs, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await adminDb.from('settings').update({ ...autoMsgs, updated_at: new Date().toISOString() }).eq('id', 1);
     finishSave(error);
   }
 
   async function saveLiveUrl() {
     if (!checkUrls(liveUrl)) return;
     setSaving('live');
-    const { error } = await supabase.from('settings').update({ live_url: liveUrl, live_active: liveActive, updated_at: new Date().toISOString() }).eq('id', 1);
+    const { error } = await adminDb.from('settings').update({ live_url: liveUrl, live_active: liveActive, updated_at: new Date().toISOString() }).eq('id', 1);
     finishSave(error);
   }
 

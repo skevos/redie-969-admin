@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { adminUpload } from '../lib/adminDb';
 import Sidebar from "../components/Sidebar";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
@@ -171,18 +172,15 @@ export default function ProducersPage() {
     const fileExt = file.name.split('.').pop();
     const fileName = `producer_${Date.now()}.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('producers')
-      .upload(fileName, file);
+    const up = await adminUpload('producers', fileName, file);
 
-    if (uploadError) {
-      alert('Σφάλμα upload: ' + uploadError.message);
+    if (up.error || !up.publicUrl) {
+      alert('Σφάλμα upload: ' + (up.error?.message || ''));
       setUploading(false);
       return;
     }
 
-    const { data } = supabase.storage.from('producers').getPublicUrl(fileName);
-    setForm(prev => ({ ...prev, photo_url: data.publicUrl }));
+    setForm(prev => ({ ...prev, photo_url: up.publicUrl! }));
     setUploading(false);
   }
 

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { adminDb, adminUpload } from '../lib/adminDb';
 import Sidebar from "../components/Sidebar";
 
 const supabase = createClient(
@@ -65,7 +66,7 @@ export default function PresencePage() {
     e.preventDefault();
     setCreating(true);
     try {
-      const { error } = await supabase.from("presence_moments").insert({
+      const { error } = await adminDb.from("presence_moments").insert({
         title: formData.title,
         description: formData.description || null,
         start_at: new Date(formData.start_at).toISOString(),
@@ -90,16 +91,16 @@ export default function PresencePage() {
 
   const toggleActive = async (m: Moment) => {
     if (!m.is_active) {
-      await supabase.from("presence_moments").update({ is_active: false }).neq("id", m.id);
+      await adminDb.from("presence_moments").update({ is_active: false }).neq("id", m.id);
     }
-    const { error } = await supabase.from("presence_moments").update({ is_active: !m.is_active }).eq("id", m.id);
+    const { error } = await adminDb.from("presence_moments").update({ is_active: !m.is_active }).eq("id", m.id);
     if (error) alert("Σφάλμα: " + error.message);
     loadData();
   };
 
   const deleteMoment = async (id: string) => {
     if (!confirm("Διαγραφή;")) return;
-    await supabase.from("presence_moments").delete().eq("id", id);
+    await adminDb.from("presence_moments").delete().eq("id", id);
     loadData();
   };
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import Sidebar from "../components/Sidebar";
 import { supabase } from "../lib/supabase";
 
+import { adminDb, adminUpload } from '../lib/adminDb';
 export default function SchedulePage() {
   const [shows, setShows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,16 +56,16 @@ export default function SchedulePage() {
     // so saving keeps working even before the SQL for the new column has been run.
     if (imageUrl || (editingShow && 'image_url' in editingShow)) payload.image_url = imageUrl || null;
     const res = editingShow
-      ? await supabase.from('shows').update(payload).eq('id', editingShow.id).select('id').single()
-      : await supabase.from('shows').insert(payload).select('id').single();
+      ? await adminDb.from('shows').update(payload).eq('id', editingShow.id).select('id').single()
+      : await adminDb.from('shows').insert(payload).select('id').single();
     if (res.error) { alert(res.error.message); return; }
     const showId = res.data?.id;
     if (showId) {
-      const del = await supabase.from('show_sponsors').delete().eq('show_id', showId);
+      const del = await adminDb.from('show_sponsors').delete().eq('show_id', showId);
       if (del.error) {
         alert('Η εκπομπή αποθηκεύτηκε, αλλά οι χορηγοί όχι: ' + del.error.message);
       } else if (list.length > 0) {
-        const ins = await supabase.from('show_sponsors').insert(list.map((sp, idx) => ({
+        const ins = await adminDb.from('show_sponsors').insert(list.map((sp, idx) => ({
           show_id: showId, name: sp.name, url: sp.url || null, url_active: sp.url_active && !!sp.url, active: sp.active, sort: idx,
         })));
         if (ins.error) alert('Η εκπομπή αποθηκεύτηκε, αλλά οι χορηγοί όχι: ' + ins.error.message);
@@ -80,7 +81,7 @@ export default function SchedulePage() {
 
   async function deleteShow(id: number) {
     if (confirm('Διαγραφή εκπομπής;')) {
-      const { error } = await supabase.from('shows').delete().eq('id', id);
+      const { error } = await adminDb.from('shows').delete().eq('id', id);
       if (error) alert(error.message);
       loadShows();
     }
@@ -88,11 +89,11 @@ export default function SchedulePage() {
 
   async function toggleLive(show: any) {
     if (show.is_live) {
-      const { error } = await supabase.from('shows').update({ is_live: false }).eq('id', show.id);
+      const { error } = await adminDb.from('shows').update({ is_live: false }).eq('id', show.id);
       if (error) alert(error.message);
     } else {
-      await supabase.from('shows').update({ is_live: false }).neq('id', show.id);
-      const { error } = await supabase.from('shows').update({ is_live: true }).eq('id', show.id);
+      await adminDb.from('shows').update({ is_live: false }).neq('id', show.id);
+      const { error } = await adminDb.from('shows').update({ is_live: true }).eq('id', show.id);
       if (error) alert(error.message);
     }
     loadShows();
@@ -119,12 +120,11 @@ export default function SchedulePage() {
       if (blob && blob.size < file.size) { body = blob; ext = 'jpg'; }
     } catch { /* unsupported format: upload as is */ }
     const fileName = `shows/show_${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from('producers').upload(fileName, body, { cacheControl: '31536000', contentType: ext === 'jpg' ? 'image/jpeg' : (file.type || undefined) });
-    if (error) {
-      alert('Σφάλμα upload: ' + error.message);
+    const up = await adminUpload('producers', fileName, ext === 'jpg' ? new Blob([body], { type: 'image/jpeg' }) : body, { cacheControl: '31536000' });
+    if (up.error || !up.publicUrl) {
+      alert('Σφάλμα upload: ' + (up.error?.message || ''));
     } else {
-      const { data } = supabase.storage.from('producers').getPublicUrl(fileName);
-      setImageUrl(data.publicUrl);
+      setImageUrl(up.publicUrl);
     }
     setUploadingImage(false);
     e.target.value = '';

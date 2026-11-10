@@ -4,6 +4,7 @@ import Sidebar from "../components/Sidebar";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 
+import { adminDb, adminUpload } from '../lib/adminDb';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -169,7 +170,7 @@ export default function NotificationsPage() {
 
       // 3. Remove dead tokens (ignore errors)
       if (invalidTokens.length > 0) {
-        try { await supabase.from('fcm_tokens').delete().in('token', invalidTokens); } catch (e) { console.log(e); }
+        try { await adminDb.from('fcm_tokens').delete().in('token', invalidTokens); } catch (e) { console.log(e); }
         loadTokenCount();
         loadLocations();
       }
@@ -178,7 +179,7 @@ export default function NotificationsPage() {
         setResult({ success: false, message: `Καμία συσκευή δεν δέχτηκε την ειδοποίηση (${failed} απέτυχαν). Firebase: ${fcmError || '—'}` });
       } else if (anyChunkOk) {
         // 4. Save to app_notifications table only after a successful send
-        await supabase.from('app_notifications').insert({
+        await adminDb.from('app_notifications').insert({
           title,
           body,
           type
@@ -337,7 +338,7 @@ export default function NotificationsPage() {
                 <button
                   onClick={async () => {
                     if (confirm('Διαγραφή όλων των ειδοποιήσεων;')) {
-                      await supabase.from('app_notifications').delete().neq('id', 0);
+                      await adminDb.from('app_notifications').delete().neq('id', 0);
                       loadHistory();
                     }
                   }}
@@ -392,7 +393,7 @@ export default function NotificationsPage() {
                       </div>
                       <button
                         onClick={async () => {
-                          await supabase.from('app_notifications').delete().eq('id', item.id);
+                          await adminDb.from('app_notifications').delete().eq('id', item.id);
                           loadHistory();
                         }}
                         style={{

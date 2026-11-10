@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { adminDb, adminUpload } from '../lib/adminDb';
 import Sidebar from "../components/Sidebar";
 
 
@@ -94,9 +95,9 @@ export default function PollsPage() {
     const { countdown_enabled, countdown_minutes, ...pollData } = form as any;
     let newPollId: any = null;
     if (editingPoll) {
-      await supabase.from("polls").update(pollData).eq("id", editingPoll.id);
+      await adminDb.from("polls").update(pollData).eq("id", editingPoll.id);
     } else {
-      const { data: inserted } = await supabase.from("polls").insert(pollData).select("id").single();
+      const { data: inserted } = await adminDb.from("polls").insert(pollData).select("id").single();
       newPollId = inserted?.id ?? null;
     }
     // If countdown enabled and poll will be active, set countdown_end
@@ -104,7 +105,7 @@ export default function PollsPage() {
       const targetId = editingPoll?.id ?? newPollId;
       if (targetId) {
         const countdown_end = new Date(Date.now() + countdown_minutes * 60000).toISOString();
-        await supabase.from("polls").update({ countdown_end }).eq("id", targetId);
+        await adminDb.from("polls").update({ countdown_end }).eq("id", targetId);
       }
     }
     setSaving(false);
@@ -114,7 +115,7 @@ export default function PollsPage() {
 
   async function deletePoll(id: number) {
     if (!confirm("Διαγραφή poll;")) return;
-    await supabase.from("polls").delete().eq("id", id);
+    await adminDb.from("polls").delete().eq("id", id);
     loadPolls();
   }
 
@@ -122,7 +123,7 @@ export default function PollsPage() {
   async function toggleActive(poll: any, expired = false) {
     if (!poll.is_active || expired) {
       // Απενεργοποίηση όλων των άλλων
-      await supabase.from("polls").update({ is_active: false, countdown_end: null }).neq("id", poll.id);
+      await adminDb.from("polls").update({ is_active: false, countdown_end: null }).neq("id", poll.id);
       const minutes = countdownInput[poll.id] || 0;
       const existingEndValid =
         !!poll.countdown_end && utcDate(poll.countdown_end).getTime() > Date.now();
@@ -132,12 +133,12 @@ export default function PollsPage() {
           : existingEndValid
             ? poll.countdown_end
             : null;
-      await supabase
+      await adminDb
         .from("polls")
         .update({ is_active: true, countdown_end })
         .eq("id", poll.id);
     } else {
-      await supabase
+      await adminDb
         .from("polls")
         .update({ is_active: false, countdown_end: null })
         .eq("id", poll.id);
@@ -146,7 +147,7 @@ export default function PollsPage() {
   }
 
   async function clearCountdown(pollId: number) {
-    await supabase
+    await adminDb
       .from("polls")
       .update({ countdown_end: null })
       .eq("id", pollId);
@@ -156,7 +157,7 @@ export default function PollsPage() {
 
   async function clearVotes(pollId: number) {
     if (!confirm("Διαγραφή όλων των ψήφων για αυτό το poll;")) return;
-    await supabase.from("poll_votes").delete().eq("poll_id", pollId);
+    await adminDb.from("poll_votes").delete().eq("poll_id", pollId);
     setPollVotes((prev) => ({ ...prev, [pollId]: 0 }));
   }
 
@@ -540,13 +541,13 @@ export default function PollsPage() {
                               checked={!!poll.countdown_end && !countdownExpired}
                               onChange={async () => {
                                 if (poll.countdown_end && !countdownExpired) {
-                                  await supabase.from("polls").update({ countdown_end: null }).eq("id", poll.id);
+                                  await adminDb.from("polls").update({ countdown_end: null }).eq("id", poll.id);
                                   loadPolls();
                                 } else {
                                   const minutes = countdownInput[poll.id] || 0;
                                   if (minutes <= 0) { alert("Γράψε πρώτα πόσα λεπτά (στο κουτάκι αριστερά) και μετά πάτα τον διακόπτη."); return; }
                                   const countdown_end = new Date(Date.now() + minutes * 60000).toISOString();
-                                  await supabase.from("polls").update({ countdown_end }).eq("id", poll.id);
+                                  await adminDb.from("polls").update({ countdown_end }).eq("id", poll.id);
                                   loadPolls();
                                 }
                               }}
@@ -583,7 +584,7 @@ export default function PollsPage() {
                         </button>
                         <button
                           onClick={async () => {
-                            await supabase.from("polls").update({ show_results: !poll.show_results }).eq("id", poll.id);
+                            await adminDb.from("polls").update({ show_results: !poll.show_results }).eq("id", poll.id);
                             loadPolls();
                           }}
                           style={{

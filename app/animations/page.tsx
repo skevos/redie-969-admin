@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Sidebar from "../components/Sidebar";
 import { supabase } from "../lib/supabase";
 
+import { adminDb, adminUpload } from '../lib/adminDb';
 interface Animation {
   id: string;
   name: string;
@@ -78,7 +79,7 @@ export default function AnimationsPage() {
     const anim = animations.find(a => a.id === id);
     const update: any = { is_active: !active };
     if (!active && anim && NEW_TYPES.includes(anim.type)) update.settings = { ...(anim.settings || {}), started_at: new Date().toISOString() };
-    const { error } = await supabase.from('app_animations').update(update).eq('id', id);
+    const { error } = await adminDb.from('app_animations').update(update).eq('id', id);
     if (error) alert('Σφάλμα: ' + error.message);
     load();
   }
@@ -116,20 +117,20 @@ export default function AnimationsPage() {
     } else if (t === 'bass_drop') {
       settings = { ...settings, bpm: Number(cfg.bpm) || 128 };
     }
-    const { error } = await supabase.from('app_animations').update({ is_active: true, settings }).eq('id', config.id);
+    const { error } = await adminDb.from('app_animations').update({ is_active: true, settings }).eq('id', config.id);
     if (error) { alert('Σφάλμα: ' + error.message); return; }
     setConfig(null);
     load();
   }
 
   async function stopAll() {
-    await supabase.from('app_animations').update({ is_active: false }).eq('is_active', true);
+    await adminDb.from('app_animations').update({ is_active: false }).eq('is_active', true);
     load();
   }
 
   async function saveTextAndActivate() {
     if (!selected) return;
-    await supabase.from('app_animations').update({
+    await adminDb.from('app_animations').update({
       is_active: true,
       settings: { message: textMessage, style: textStyle, position: textPosition, size: textSize }
     }).eq('id', selected.id);

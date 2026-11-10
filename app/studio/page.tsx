@@ -4,6 +4,7 @@ import Link from "next/link";
 import Sidebar from "../components/Sidebar";
 import { resolveAutoMessages, fillTemplate } from "../lib/autoMessages";
 import { supabase } from "../lib/supabase";
+import { adminDb, adminUpload } from '../lib/adminDb';
 import SongRequestsPanel from "../components/SongRequestsPanel";
 
 const CHUNK_SIZE = 300;
@@ -41,14 +42,14 @@ export default function StudioChatPage() {
   }
 
   async function hideReported(r: any) {
-    if (r.message_id) await supabase.from('chat_messages').update({ is_hidden: true }).eq('id', r.message_id);
-    await supabase.from('chat_reports').update({ handled: true }).or(`id.eq.${r.id}${r.message_id ? `,message_id.eq.${r.message_id}` : ''}`);
+    if (r.message_id) await adminDb.from('chat_messages').update({ is_hidden: true }).eq('id', r.message_id);
+    await adminDb.from('chat_reports').update({ handled: true }).or(`id.eq.${r.id}${r.message_id ? `,message_id.eq.${r.message_id}` : ''}`);
     setMessages(prev => prev.map(m => String(m.id) === String(r.message_id) ? { ...m, is_hidden: true } : m));
     loadReports();
   }
 
   async function dismissReport(r: any) {
-    await supabase.from('chat_reports').update({ handled: true }).eq('id', r.id);
+    await adminDb.from('chat_reports').update({ handled: true }).eq('id', r.id);
     loadReports();
   }
 
@@ -162,14 +163,14 @@ export default function StudioChatPage() {
 
   async function openChat() {
     const title = "Live Chat - " + new Date().toLocaleDateString('el-GR');
-    const { data: room, error } = await supabase.from('chat_rooms').insert({ 
+    const { data: room, error } = await adminDb.from('chat_rooms').insert({ 
       title, 
       is_closed: false, 
       starts_at: new Date().toISOString() 
     }).select().single();
     
     if (room && !error) {
-      await supabase.from('chat_config').update({ 
+      await adminDb.from('chat_config').update({ 
         active_room_id: room.id, 
         is_chat_open: true 
       }).eq('id', 1);
@@ -181,7 +182,7 @@ export default function StudioChatPage() {
       const t = fillTemplate(msgs.msg_chat_open_title, {});
       const b = fillTemplate(msgs.msg_chat_open_body, {});
       if (t) {
-        await supabase.from('app_notifications').insert({ title: t, body: b, type: 'chat' });
+        await adminDb.from('app_notifications').insert({ title: t, body: b, type: 'chat' });
         await sendPushToAll(t, b);
       }
     }
@@ -191,7 +192,7 @@ export default function StudioChatPage() {
     // Archive messages before closing
     if (roomId && messages.length > 0) {
       const { data: roomRow } = await supabase.from('chat_rooms').select('show_name, title').eq('id', roomId).maybeSingle();
-      await supabase.from('chat_archives').insert({
+      await adminDb.from('chat_archives').insert({
         room_id: roomId,
         messages: messages,
         total_messages: messages.length,
@@ -199,9 +200,9 @@ export default function StudioChatPage() {
       });
     }
     
-    await supabase.from('chat_config').update({ is_chat_open: false }).eq('id', 1);
+    await adminDb.from('chat_config').update({ is_chat_open: false }).eq('id', 1);
     if (roomId) {
-      await supabase.from('chat_rooms').update({ 
+      await adminDb.from('chat_rooms').update({ 
         is_closed: true,
         closed_at: new Date().toISOString()
       }).eq('id', roomId);
@@ -212,7 +213,7 @@ export default function StudioChatPage() {
     const t = fillTemplate(msgs.msg_chat_close_title, {});
     const bd = fillTemplate(msgs.msg_chat_close_body, {});
     if (t) {
-      await supabase.from('app_notifications').insert({ title: t, body: bd, type: 'chat' });
+      await adminDb.from('app_notifications').insert({ title: t, body: bd, type: 'chat' });
       await sendPushToAll(t, bd);
     }
   }
@@ -234,33 +235,33 @@ export default function StudioChatPage() {
   async function toggleAutoMode() {
     const newMode = !autoMode;
     setAutoMode(newMode);
-    await supabase.from('chat_config').update({ auto_mode: newMode }).eq('id', 1);
+    await adminDb.from('chat_config').update({ auto_mode: newMode }).eq('id', 1);
   }
 
   async function deleteMessage(id: string) {
-    const { error } = await supabase.from('chat_messages').delete().eq('id', id);
+    const { error } = await adminDb.from('chat_messages').delete().eq('id', id);
     if (error) { alert(error.message); return; }
     setMessages(prev => prev.filter(m => m.id !== id));
   }
 
   async function pinMessage(msg: any) {
     // Unpin all first
-    await supabase.from('chat_messages').update({ is_pinned: false }).eq('room_id', roomId);
+    await adminDb.from('chat_messages').update({ is_pinned: false }).eq('room_id', roomId);
     // Pin this one
-    await supabase.from('chat_messages').update({ is_pinned: true }).eq('id', msg.id);
+    await adminDb.from('chat_messages').update({ is_pinned: true }).eq('id', msg.id);
     setPinnedMessage(msg.message);
     setMessages(prev => prev.map(m => ({ ...m, is_pinned: m.id === msg.id })));
   }
 
   async function clearPin() {
-    await supabase.from('chat_messages').update({ is_pinned: false }).eq('room_id', roomId);
+    await adminDb.from('chat_messages').update({ is_pinned: false }).eq('room_id', roomId);
     setPinnedMessage('');
     setMessages(prev => prev.map(m => ({ ...m, is_pinned: false })));
   }
 
   async function clearAllMessages() {
     if (!confirm('Διαγραφή όλων των μηνυμάτων;')) return;
-    await supabase.from('chat_messages').delete().eq('room_id', roomId);
+    await adminDb.from('chat_messages').delete().eq('room_id', roomId);
     setMessages([]);
     setPinnedMessage('');
   }
@@ -271,7 +272,7 @@ export default function StudioChatPage() {
     replyBusyRef.current = true;
     
     try {
-      const { error } = await supabase.from('chat_messages').insert({
+      const { error } = await adminDb.from('chat_messages').insert({
         room_id: roomId,
         message: replyText,
         nickname_snapshot: 'REDIE 969',
