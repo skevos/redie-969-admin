@@ -12,6 +12,8 @@ export default function ContentPage() {
   const [metadataEnabled, setMetadataEnabled] = useState(false);
   const [adKeywords, setAdKeywords] = useState('');
   const [showInNowPlaying, setShowInNowPlaying] = useState(true);
+  // App feature switches (settings.*, missing / null = on)
+  const [features, setFeatures] = useState<Record<string, boolean>>({});
   const [onAirShow, setOnAirShow] = useState<{ title: string; producer_name: string | null } | null>(null);
   const [adText, setAdText] = useState('📢 Διαφημίσεις · Μένετε συντονισμένοι στον REDIE 969');
   const [radioNow, setRadioNow] = useState<{ title: string; artwork: string; history: string[]; error?: string } | null>(null);
@@ -109,6 +111,15 @@ export default function ContentPage() {
     finishSave(error);
   }
 
+  async function toggleFeature(key: string, defaultOn = true) {
+    const current = features[key] ?? defaultOn;
+    const next = !current;
+    setSaving('f_' + key);
+    const { error } = await supabase.from('settings').update({ [key]: next, updated_at: new Date().toISOString() }).eq('id', 1);
+    if (!error) setFeatures(f => ({ ...f, [key]: next }));
+    finishSave(error);
+  }
+
   async function toggleMetadata() {
     const next = !metadataEnabled;
     setSaving('metadata');
@@ -125,6 +136,14 @@ export default function ContentPage() {
         setNowPlaying(data.now_playing || 'REDIE 969 Live');
         setMetadataEnabled(data.metadata_enabled === true);
         setShowInNowPlaying(data.show_in_now_playing !== false);
+        setFeatures({
+          requests_open: data.requests_open !== false,
+          likes_enabled: data.likes_enabled !== false,
+          history_enabled: data.history_enabled !== false,
+          lock_screen_artwork: data.lock_screen_artwork !== false,
+          lock_screen_like: data.lock_screen_like !== false,
+          swipe_hints_enabled: data.swipe_hints_enabled !== false,
+        });
         if (typeof data.metadata_ad_keywords === 'string') setAdKeywords(data.metadata_ad_keywords);
         if (typeof data.metadata_ad_text === 'string' && data.metadata_ad_text.trim()) setAdText(data.metadata_ad_text);
         setAnnouncement(data.announcement || '');
@@ -262,6 +281,38 @@ export default function ContentPage() {
         </header>
 
         <div style={{ padding: 28, maxWidth: 900 }}>
+          {/* App features on / off */}
+          <div style={{ background: 'white', borderRadius: 20, padding: 24, marginBottom: 24, border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1f2937', margin: '0 0 4px' }}>⚙️ Λειτουργίες εφαρμογής</h2>
+            <p style={{ color: '#6b7280', fontSize: 13, margin: '0 0 16px' }}>Ενεργοποίηση / απενεργοποίηση. Ισχύει αμέσως στην έκδοση 1.0.9 και μετά.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
+              {([
+                { key: 'requests_open', icon: '🎵', title: 'Αιτήματα & αφιερώσεις', desc: 'Κουμπί αιτήματος στην αρχική' },
+                { key: 'likes_enabled', icon: '❤️', title: '«Μου αρέσει» στα τραγούδια', desc: 'Καρδούλα δίπλα στον τίτλο και στη λίστα' },
+                { key: 'history_enabled', icon: '🕘', title: '«Τι έπαιξε πριν»', desc: 'Λίστα με τα προηγούμενα τραγούδια' },
+                { key: 'lock_screen_artwork', icon: '🖼️', title: 'Εξώφυλλα στην οθόνη κλειδώματος', desc: 'Εξώφυλλο τραγουδιού / φωτογραφία εκπομπής αντί για το logo' },
+                { key: 'lock_screen_like', icon: '🔒', title: '❤️ στην οθόνη κλειδώματος', desc: 'Κουμπί «Μου αρέσει» δίπλα στο pause (Android)' },
+                { key: 'swipe_hints_enabled', icon: '↔️', title: 'Σημάδια swipe', desc: 'Βελάκια στις άκρες για τις άλλες σελίδες' },
+              ] as const).map(f => {
+                const on = features[f.key] ?? true;
+                return (
+                  <button key={f.key} onClick={() => toggleFeature(f.key)} disabled={saving === 'f_' + f.key}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', padding: '12px 14px', borderRadius: 14, cursor: 'pointer', background: on ? '#fef2f2' : '#f9fafb', border: `1.5px solid ${on ? '#fca5a5' : '#e5e7eb'}`, transition: 'all .15s' }}>
+                    <span style={{ fontSize: 22, flexShrink: 0, opacity: on ? 1 : 0.45 }}>{f.icon}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: on ? '#1f2937' : '#6b7280' }}>{f.title}</span>
+                      <span style={{ display: 'block', fontSize: 11.5, color: '#9ca3af', marginTop: 2 }}>{f.desc}</span>
+                    </span>
+                    <span style={{ width: 40, height: 22, borderRadius: 22, background: on ? '#ef4444' : '#d1d5db', position: 'relative', flexShrink: 0, transition: 'background .15s' }}>
+                      <span style={{ position: 'absolute', top: 3, left: on ? 21 : 3, width: 16, height: 16, borderRadius: 16, background: 'white', boxShadow: '0 1px 2px rgba(0,0,0,0.25)', transition: 'left .15s' }} />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p style={{ color: '#9ca3af', fontSize: 11.5, margin: '12px 0 0' }}>Ο τίτλος από Radio.co και η εκπομπή στο «τώρα παίζει» ρυθμίζονται στην κάρτα Now Playing πιο κάτω.</p>
+          </div>
+
           {/* Now Playing */}
           <div style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', borderRadius: 20, padding: 28, marginBottom: 24 }}>
             <h2 style={{ fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 8 }}>🎵 Now Playing <span style={{ background: '#22c55e', color: 'white', fontSize: 10, padding: '4px 8px', borderRadius: 20 }}>LIVE</span></h2>
