@@ -102,9 +102,24 @@ export default function SchedulePage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingImage(true);
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    // Shrink before upload: max 800px JPEG (a 2 MB phone photo becomes ~80 KB), cached by phones for a year
+    let body: Blob = file;
+    let ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    try {
+      const bmp = await createImageBitmap(file);
+      const scale = Math.min(1, 800 / Math.max(bmp.width, bmp.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bmp.width * scale);
+      canvas.height = Math.round(bmp.height * scale);
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      const blob: Blob | null = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85));
+      if (blob && blob.size < file.size) { body = blob; ext = 'jpg'; }
+    } catch { /* unsupported format: upload as is */ }
     const fileName = `shows/show_${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from('producers').upload(fileName, file);
+    const { error } = await supabase.storage.from('producers').upload(fileName, body, { cacheControl: '31536000', contentType: ext === 'jpg' ? 'image/jpeg' : (file.type || undefined) });
     if (error) {
       alert('Σφάλμα upload: ' + error.message);
     } else {
