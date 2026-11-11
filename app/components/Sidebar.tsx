@@ -10,6 +10,7 @@ const SECTIONS: { title: string; items: { href: string; icon: string; label: str
     title: 'Κύρια',
     items: [
       { href: "/", icon: "🏠", label: "Dashboard" },
+      { href: "/stats", icon: "📈", label: "Στατιστικά" },
       { href: "/analytics", icon: "📊", label: "Analytics" },
     ],
   },
