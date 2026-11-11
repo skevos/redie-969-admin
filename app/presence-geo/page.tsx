@@ -36,7 +36,7 @@ export default function PresenceGeoPage() {
 
   const loadData = async () => {
     try {
-      const { data: geoData, error } = await supabase.rpc('get_presence_geo_boosted');
+      const { data: geoData, error } = await fetch('/api/admin/rpc?name=get_presence_geo_boosted', { credentials: 'same-origin' }).then(r => r.json()).catch(() => ({ data: null, error: { message: 'network' } }));
       if (error) console.error('RPC error:', error);
       if (geoData) setData(geoData);
     } catch (e) {

@@ -24,7 +24,7 @@ export default function PresenceAnalyticsPage() {
 
   const loadStats = async () => {
     try {
-      const { data, error } = await supabase.rpc('get_presence_dashboard_stats');
+      const { data, error } = await fetch('/api/admin/rpc?name=get_presence_dashboard_stats', { credentials: 'same-origin' }).then(r => r.json()).catch(() => ({ data: null, error: { message: 'network' } }));
       if (!error && data) {
         setStats(data);
       }
