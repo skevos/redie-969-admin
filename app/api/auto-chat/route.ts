@@ -1,13 +1,12 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '../../lib/supabaseAdmin';
 import { NextResponse } from 'next/server';
 import { resolveAutoMessages, fillTemplate } from '../../lib/autoMessages';
 
 export const maxDuration = 60;
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// Service role: this cron route writes chat_rooms / chat_config / app_notifications / shows,
+// which the public anon key can no longer change (database lock, 11/11/2026).
+const supabase = getSupabaseAdmin();
 
 const CHUNK_SIZE = 300;
 
