@@ -17,7 +17,7 @@ export const RADIOCO_GROUPS: { key: string; label: string; match: (c: string) =>
   { key: 'android_app', label: '📱 Εφαρμογή Android', match: c => c === 'Just Audio' },
   { key: 'iphone', label: '🍏 iPhone (εφαρμογή / Safari)', match: c => c === 'Mobile Safari' || c === 'Chrome Mobile iOS' },
   { key: 'desktop', label: '💻 Site / υπολογιστές', match: c => ['Chrome', 'Safari', 'Firefox', 'Microsoft Edge', 'Opera', 'Edge'].includes(c) },
-  { key: 'alexa', label: '🔊 Alexa / Amazon', match: c => c === 'Mobile Silk' || /alexa|amazon|silk/i.test(c) },
+  { key: 'alexa', label: '🔊 Συσκευές Amazon (Fire κ.ά.)', match: c => c === 'Mobile Silk' || /alexa|amazon|silk/i.test(c) },
   { key: 'mobile_web', label: '📲 Browser κινητού', match: c => /mobile|samsung/i.test(c) },
 ];
 export function groupOf(client: string): string {

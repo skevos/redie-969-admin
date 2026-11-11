@@ -39,7 +39,7 @@ const SECTIONS: { title: string; items: { href: string; icon: string; label: str
     title: 'Ακροατές',
     items: [
       { href: "/geo", icon: "🌍", label: "Geo Analytics" },
-      { href: "/presence", icon: "📡", label: "Presence Mode" },
+      { href: "/presence", icon: "🎁", label: "Moments" },
       { href: "/presence-analytics", icon: "🎯", label: "Presence Stats" },
       { href: "/presence-geo", icon: "🗺️", label: "Geo Listeners" },
       { href: "/presence-geo-admin", icon: "⚙️", label: "Geo Boost" },

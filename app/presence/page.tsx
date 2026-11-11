@@ -23,14 +23,36 @@ interface Moment {
 
 export default function PresencePage() {
   const [moments, setMoments] = useState<Moment[]>([]);
-  const [stats, setStats] = useState({ profiles: 0, sessions: 0, pushes: 0 });
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
   const [formData, setFormData] = useState({
     title: "", description: "", start_at: "", end_at: "",
-    sponsor_name: "", max_claims: ""
+    sponsor_name: "", max_claims: "10"
   });
+  const [openWins, setOpenWins] = useState<string | null>(null);
+  const [wins, setWins] = useState<{ claim_no: number; code: string; created_at: string; device_id: string }[]>([]);
+  const [winsLoading, setWinsLoading] = useState(false);
+  const [checkCode, setCheckCode] = useState("");
+
+  // local "YYYY-MM-DDTHH:mm" for datetime-local inputs
+  const localDT = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const openForm = () => {
+    const now = new Date();
+    setFormData(f => ({ ...f, start_at: localDT(now), end_at: localDT(new Date(now.getTime() + 15 * 60000)) }));
+    setShowForm(true);
+  };
+
+  const toggleWins = async (id: string) => {
+    if (openWins === id) { setOpenWins(null); return; }
+    setOpenWins(id); setWins([]); setWinsLoading(true); setCheckCode("");
+    try {
+      const r = await fetch(`/api/admin/moment-wins?id=${id}`, { credentials: "same-origin" });
+      const j = await r.json();
+      setWins(j.wins || []);
+    } catch { setWins([]); }
+    setWinsLoading(false);
+  };
 
   useEffect(() => {
     loadData();
@@ -47,14 +69,6 @@ export default function PresencePage() {
         .limit(20);
       setMoments(momentsData || []);
 
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const [{ count: profiles }, { count: sessions }] = await Promise.all([
-        supabase.from("presence_profile").select("*", { count: "exact", head: true }),
-        supabase.from("presence_sessions").select("*", { count: "exact", head: true })
-          .gte("started_at", todayStart.toISOString())
-      ]);
-      setStats({ profiles: profiles || 0, sessions: sessions || 0, pushes: 0 });
     } catch (e) {
       console.error(e);
     } finally {
@@ -66,6 +80,7 @@ export default function PresencePage() {
     e.preventDefault();
     setCreating(true);
     try {
+      await adminDb.from("presence_moments").update({ is_active: false }).eq("is_active", true);
       const { error } = await adminDb.from("presence_moments").insert({
         title: formData.title,
         description: formData.description || null,
@@ -73,14 +88,14 @@ export default function PresencePage() {
         end_at: new Date(formData.end_at).toISOString(),
         sponsor_name: formData.sponsor_name || null,
         max_claims: formData.max_claims ? parseInt(formData.max_claims) : null,
-        is_active: false
+        is_active: true
       });
       if (error) {
         alert("Σφάλμα: " + error.message);
         return;
       }
       setShowForm(false);
-      setFormData({ title: "", description: "", start_at: "", end_at: "", sponsor_name: "", max_claims: "" });
+      setFormData({ title: "", description: "", start_at: "", end_at: "", sponsor_name: "", max_claims: "10" });
       loadData();
     } catch (e) {
       alert("Σφάλμα");
@@ -123,28 +138,20 @@ export default function PresencePage() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
             <div>
-              <h1 style={{ fontSize: 28, fontWeight: 700, color: "#1f2937", margin: 0 }}>📡 Radio Presence Mode™</h1>
-              <p style={{ color: "#6b7280", margin: "4px 0 0" }}>Διαχείριση moments & analytics</p>
+              <h1 style={{ fontSize: 28, fontWeight: 700, color: "#1f2937", margin: 0 }}>🎁 Moments</h1>
+              <p style={{ color: "#6b7280", margin: "4px 0 0" }}>Δώρα χορηγών στην εφαρμογή: οι πρώτοι που πατάνε «Το θέλω!» κερδίζουν και παίρνουν κωδικό</p>
             </div>
-            <button onClick={() => setShowForm(true)} style={{
+            <button onClick={openForm} style={{
               background: "#8b5cf6", color: "white", border: "none", padding: "12px 24px",
               borderRadius: 12, fontWeight: 600, cursor: "pointer"
             }}>+ Νέο Moment</button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}>
-            <div style={{ background: "white", borderRadius: 16, padding: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
-              <p style={{ color: "#6b7280", fontSize: 14, margin: 0 }}>Συνολικά Profiles</p>
-              <p style={{ fontSize: 32, fontWeight: 700, color: "#1f2937", margin: "8px 0 0" }}>{stats.profiles}</p>
-            </div>
-            <div style={{ background: "white", borderRadius: 16, padding: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
-              <p style={{ color: "#6b7280", fontSize: 14, margin: 0 }}>Sessions Σήμερα</p>
-              <p style={{ fontSize: 32, fontWeight: 700, color: "#22c55e", margin: "8px 0 0" }}>{stats.sessions}</p>
-            </div>
-            <div style={{ background: "white", borderRadius: 16, padding: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
-              <p style={{ color: "#6b7280", fontSize: 14, margin: 0 }}>Active Moments</p>
-              <p style={{ fontSize: 32, fontWeight: 700, color: "#8b5cf6", margin: "8px 0 0" }}>{moments.filter(m => m.is_active).length}</p>
-            </div>
+          <div style={{ background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 16, padding: 20, marginBottom: 24, color: "#4c1d95", fontSize: 14, lineHeight: 1.7 }}>
+            <b>Πώς δουλεύει:</b> 1) «+ Νέο Moment» → γράφεις το δώρο, τον χορηγό και πόσοι κερδίζουν. Ξεκινά αμέσως (15′ προεπιλογή).
+            2) Το λες στον αέρα: «ανοίξτε την εφαρμογή, οι 10 πρώτοι κερδίζουν!». 3) Στην αρχική της εφαρμογής βγαίνει κάρτα με κουμπί «Το θέλω!».
+            4) Όποιος προλάβει παίρνει κωδικό (π.χ. 7F3A9C) και τον δείχνει στον χορηγό. 5) Εδώ πατάς «🏆 Νικητές» για να ελέγξεις τους κωδικούς.
+            Ένα κινητό = μία νίκη.
           </div>
 
           <div style={{ background: "white", borderRadius: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
@@ -159,7 +166,8 @@ export default function PresencePage() {
               moments.map(m => {
                 const status = getStatus(m);
                 return (
-                  <div key={m.id} style={{ padding: 24, borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div key={m.id}>
+                  <div style={{ padding: 24, borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
                         <span style={{ fontSize: 16, fontWeight: 600, color: "#1f2937" }}>{m.title}</span>
@@ -167,11 +175,14 @@ export default function PresencePage() {
                       </div>
                       <div style={{ display: "flex", gap: 16, fontSize: 13, color: "#6b7280" }}>
                         <span>🕐 {formatDT(m.start_at)} - {formatDT(m.end_at)}</span>
-                        <span>👥 {m.claims_count} claims</span>
+                        <span>🏆 {m.claims_count}{m.max_claims ? ` / ${m.max_claims}` : ""} νικητές</span>
                         {m.sponsor_name && <span>🤝 {m.sponsor_name}</span>}
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => toggleWins(m.id)} style={{
+                        background: "#fef3c7", color: "#92400e", border: "none", padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontWeight: 600
+                      }}>🏆 Νικητές</button>
                       <button onClick={() => toggleActive(m)} style={{
                         background: m.is_active ? "#ef4444" : "#22c55e", color: "white",
                         border: "none", padding: "8px 16px", borderRadius: 8, cursor: "pointer", fontWeight: 500
@@ -180,6 +191,33 @@ export default function PresencePage() {
                         background: "#f3f4f6", border: "none", padding: "8px 12px", borderRadius: 8, cursor: "pointer"
                       }}>🗑️</button>
                     </div>
+                  </div>
+                  {openWins === m.id && (
+                    <div style={{ padding: "16px 24px 24px", background: "#fffbeb", borderBottom: "1px solid #f3f4f6" }}>
+                      <input value={checkCode} onChange={e => setCheckCode(e.target.value.toUpperCase().trim())} placeholder="Έλεγχος κωδικού (π.χ. 7F3A9C)"
+                        style={{ padding: 10, border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14, width: 280, marginBottom: 8, fontFamily: "monospace" }} />
+                      {checkCode.length >= 4 && (
+                        <span style={{ marginLeft: 12, fontWeight: 700, color: wins.some(w => w.code === checkCode) ? "#16a34a" : "#dc2626" }}>
+                          {wins.some(w => w.code === checkCode) ? "✅ Έγκυρος κωδικός" : "❌ Δεν βρέθηκε"}
+                        </span>
+                      )}
+                      {winsLoading ? <div style={{ color: "#6b7280" }}>Φόρτωση...</div> : wins.length === 0 ? (
+                        <div style={{ color: "#6b7280" }}>Κανένας νικητής ακόμα.</div>
+                      ) : (
+                        <table style={{ borderCollapse: "collapse", fontSize: 14, marginTop: 4 }}>
+                          <thead><tr style={{ color: "#6b7280", textAlign: "left" }}><th style={{ padding: "4px 16px 4px 0" }}>#</th><th style={{ padding: "4px 16px 4px 0" }}>Κωδικός</th><th style={{ padding: "4px 16px 4px 0" }}>Ώρα</th><th>Κινητό</th></tr></thead>
+                          <tbody>{wins.map(w => (
+                            <tr key={w.claim_no} style={{ background: w.code === checkCode ? "#bbf7d0" : undefined }}>
+                              <td style={{ padding: "4px 16px 4px 0" }}>{w.claim_no}</td>
+                              <td style={{ padding: "4px 16px 4px 0", fontFamily: "monospace", fontWeight: 700, letterSpacing: 2 }}>{w.code}</td>
+                              <td style={{ padding: "4px 16px 4px 0" }}>{new Date(w.created_at).toLocaleTimeString("el-GR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</td>
+                              <td style={{ color: "#9ca3af" }}>…{w.device_id}</td>
+                            </tr>
+                          ))}</tbody>
+                        </table>
+                      )}
+                    </div>
+                  )}
                   </div>
                 );
               })
@@ -195,7 +233,7 @@ export default function PresencePage() {
                 </div>
                 <form onSubmit={createMoment}>
                   <div style={{ marginBottom: 16 }}>
-                    <label style={{ display: "block", fontSize: 14, color: "#374151", marginBottom: 6 }}>Τίτλος *</label>
+                    <label style={{ display: "block", fontSize: 14, color: "#374151", marginBottom: 6 }}>Δώρο * (π.χ. «Κέρδισε 2 καφέδες»)</label>
                     <input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})}
                       style={{ width: "100%", padding: 12, border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14 }} />
                   </div>
@@ -223,7 +261,7 @@ export default function PresencePage() {
                         style={{ width: "100%", padding: 12, border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14 }} />
                     </div>
                     <div>
-                      <label style={{ display: "block", fontSize: 14, color: "#374151", marginBottom: 6 }}>Max Claims</label>
+                      <label style={{ display: "block", fontSize: 14, color: "#374151", marginBottom: 6 }}>Πόσοι κερδίζουν</label>
                       <input type="number" value={formData.max_claims} onChange={e => setFormData({...formData, max_claims: e.target.value})}
                         style={{ width: "100%", padding: 12, border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14 }} placeholder="Απεριόριστο" />
                     </div>
