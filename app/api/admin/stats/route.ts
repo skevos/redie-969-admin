@@ -256,6 +256,7 @@ export async function GET(req: NextRequest) {
       days, since: sinceIso,
       live: {
         real: liveDevices.length,
+        web: liveDevices.filter(d => String(d).startsWith('web-')).length,
         presence_real: presenceLive,
         stale_rows: staleRows,
         app_shows_public: (settingsRes.data?.show_listener_count === false) ? null : al.length + base,
@@ -271,6 +272,7 @@ export async function GET(req: NextRequest) {
         avg_minutes: iv.length ? Math.round(listenSec / iv.length / 6) / 10 : 0,
         sessions: iv.length,
         raw_sessions: rawSessions,
+        web_listeners: new Set(iv.filter(i => i.p === 'web').map(i => i.d)).size,
         ios_sessions: iv.filter(i => i.p === 'ios').length,
         android_sessions: iv.filter(i => i.p === 'android').length,
         peak: peak.peak, peak_at: peak.at,

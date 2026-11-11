@@ -113,7 +113,7 @@ export default function StatsPage() {
                 <div>
                   <div style={{ fontSize: 12, letterSpacing: 1.4, color: '#fca5a5', fontWeight: 700 }}>● ΑΚΟΥΝΕ ΤΩΡΑ (ΠΡΑΓΜΑΤΙΚΟΙ)</div>
                   <div style={{ fontSize: 56, fontWeight: 800, lineHeight: 1.1 }}>{live.real}</div>
-                  <div style={{ fontSize: 12, color: '#9ca3af' }}>κινητά που έπαιζαν τα τελευταία 90″ · iOS {live.ios} · Android {live.android}{live.real - live.ios - live.android > 0 ? ` · ; ${live.real - live.ios - live.android}` : ''}</div>
+                  <div style={{ fontSize: 12, color: '#9ca3af' }}>έπαιζαν τα τελευταία 90″ · 📱 εφαρμογή {live.real - (live.web || 0)} · 🌐 site {live.web || 0}</div>
                 </div>
                 <div style={{ borderLeft: '1px solid #374151', paddingLeft: 24 }}>
                   <div style={{ fontSize: 12, color: '#9ca3af' }}>Βλέπει το κοινό στην εφαρμογή</div>
@@ -144,7 +144,7 @@ export default function StatsPage() {
             <section>
               <h2 style={h2}>{days === 1 ? 'Σήμερα' : `Τελευταίες ${days} ημέρες`}</h2>
               <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                {kpi('🎧 Μοναδικοί ακροατές', n(d.period.unique_listeners), 'κινητά που πάτησαν play', red)}
+                {kpi('🎧 Μοναδικοί ακροατές', n(d.period.unique_listeners), `πάτησαν play · 🌐 site ${n(d.period.web_listeners || 0)}`, red)}
                 {kpi('⏱️ Ώρες ακρόασης', n(d.period.listen_hours), `μ.ο. ${d.period.avg_minutes}′ ανά ακρόαση`)}
                 {kpi('🔝 Μέγιστοι ταυτόχρονοι', n(d.period.peak), fmtTime(d.period.peak_at))}
                 {kpi('📱 Χρήστες εφαρμογής', n(d.period.app_users), `${n(d.period.app_opens)} ανοίγματα`)}
@@ -254,7 +254,7 @@ export default function StatsPage() {
             </div>
 
             <p style={{ fontSize: 11.5, color: '#9ca3af', margin: 0 }}>
-              Μετριούνται μόνο οι ακροατές της εφαρμογής. Όσοι ακούν από ιστοσελίδα ή άλλες πλατφόρμες φαίνονται μόνο στο Radio.co. Μια ακρόαση καταγράφεται όταν σταματήσει το play, οπότε αν κάποιος κλείσει απότομα την εφαρμογή χάνεται — τα νούμερα είναι το ελάχιστο. Ενημέρωση κάθε 1′ · {fmtTime(d.generated_at)}
+              Μετριούνται οι ακροατές της εφαρμογής και του player της ιστοσελίδας. Όσοι ακούν από άλλες πλατφόρμες (TuneIn, ενσωματωμένος player Radio.co κ.ά.) φαίνονται μόνο στο Radio.co. Μια ακρόαση καταγράφεται όταν σταματήσει το play, οπότε αν κάποιος κλείσει απότομα την εφαρμογή χάνεται — τα νούμερα είναι το ελάχιστο. Ενημέρωση κάθε 1′ · {fmtTime(d.generated_at)}
             </p>
           </>)}
         </div>
