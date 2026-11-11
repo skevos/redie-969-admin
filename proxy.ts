@@ -52,6 +52,9 @@ export async function proxy(request: NextRequest) {
 
   if (isAdmin) return NextResponse.next();
 
+  // Radio.co import (bookmarklet on studio.radio.co): the route checks its own token
+  if (pathname === '/api/radioco/import') return NextResponse.next();
+
   // Producer-chat endpoints: the route itself checks the producer (or admin) session
   if (pathname.startsWith('/api/producer/')) return NextResponse.next();
 

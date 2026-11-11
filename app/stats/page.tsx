@@ -1,6 +1,7 @@
 "use client";
 import { Fragment, useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
+import { buildRadiocoBookmarklet } from "../lib/radiocoBookmarklet";
 
 // 📈 Στατιστικά — real numbers only (no base, no boost). Data: /api/admin/stats (service role).
 
@@ -205,6 +206,53 @@ export default function StatsPage() {
                   </tbody>
                 </table>
               </div>
+            </section>
+
+            {/* RADIO.CO — ALL SOURCES */}
+            <section style={card}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+                <h2 style={{ ...h2, margin: 0, marginRight: 'auto' }}>📡 Όλες οι πηγές (Radio.co)</h2>
+                <span style={{ fontSize: 12, color: '#9ca3af' }}>{d.radioco?.last_update ? `Ενημέρωση: ${fmtTime(d.radioco.last_update)}` : 'Δεν έχει γίνει ενημέρωση ακόμα'}</span>
+              </div>
+              <p style={{ margin: '0 0 14px', fontSize: 12, color: '#9ca3af' }}>Εφαρμογή + site + Alexa + κάθε άλλη πλατφόρμα, χωρίς τις αυτόματες συνδέσεις («Unknown» player). Οι ώρες «Γερμανία» είναι κυρίως ρομπότ και μετριούνται χωριστά.</p>
+              {d.radioco?.setupNeeded ? <p style={{ color: '#b45309', fontSize: 13 }}>Χρειάζεται το SQL του πίνακα radioco_daily.</p> : null}
+              {d.radioco && !d.radioco.setupNeeded && d.radioco.days?.length ? (<>
+                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 16 }}>
+                  {kpi('🇬🇷 Ώρες ακρόασης Ελλάδα', n(Math.round((d.radioco.hours.find((h: any) => h.region === 'GR')?.hours || 0))), 'όλες οι πηγές', red)}
+                  {kpi('🌍 Ώρες εξωτερικό', n(Math.round(d.radioco.hours.filter((h: any) => h.region !== 'GR' && h.region !== 'DE').reduce((a: number, h: any) => a + h.hours, 0))), d.radioco.hours.filter((h: any) => h.region !== 'GR' && h.region !== 'DE').slice(0, 4).map((h: any) => `${h.region} ${h.hours}`).join(' · ') || '—')}
+                  {kpi('🎧 Πραγματικές συνδέσεις', n(d.radioco.real_sessions), `+ ${n(d.radioco.bot_sessions)} αυτόματες (εξαιρούνται)`)}
+                  {kpi('🔝 Μέγιστοι ταυτόχρονα', n(d.radioco.peak), 'όλες οι πηγές')}
+                </div>
+                <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 280 }}>
+                    <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: '#1f2937' }}>Από πού ακούνε (συνδέσεις)</p>
+                    {d.radioco.groups.map((g: any) => {
+                      const tot = d.radioco.groups.reduce((a: number, b: any) => a + b.n, 0) || 1;
+                      return (
+                        <div key={g.key} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, padding: '4px 0' }}>
+                          <span style={{ width: 190, color: '#4b5563' }}>{g.label}</span>
+                          <div style={{ flex: 1, height: 8, background: '#f3f4f6', borderRadius: 8 }}><div style={{ width: `${(g.n / tot) * 100}%`, height: 8, background: red, borderRadius: 8 }} /></div>
+                          <span style={{ width: 80, textAlign: 'right' }}>{n(g.n)} · {Math.round((g.n / tot) * 100)}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ flex: 1.4, minWidth: 320 }}>
+                    <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: '#1f2937' }}>Ώρες ακρόασης Ελλάδα ανά ημέρα — όλες οι πηγές vs εφαρμογή</p>
+                    {bars(d.radioco.days.map((x: any) => ({ label: fmtDate(x.day), v: Math.round(x.hours_gr), tip: `${fmtDate(x.day)}: ${x.hours_gr} ώρες (όλες οι πηγές) · εφαρμογή ${d.daily.find((y: any) => y.date === x.day)?.hours ?? '—'} ώρες · μέγιστοι ${x.peak}` })), '#0f766e', 90)}
+                  </div>
+                </div>
+              </>) : null}
+              {d.radioco?.token ? (
+                <details style={{ marginTop: 14 }}>
+                  <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151' }}>🔄 Ενημέρωση από Radio.co — οδηγίες</summary>
+                  <ol style={{ fontSize: 13, color: '#4b5563', lineHeight: 1.7, margin: '10px 0 0' }}>
+                    <li>Σύρετε αυτό το κουμπί στη γραμμή σελιδοδεικτών του browser: <a href={buildRadiocoBookmarklet(typeof window !== 'undefined' ? window.location.origin : '', d.radioco.token)} onClick={e => { e.preventDefault(); alert('Σύρετέ το στη γραμμή σελιδοδεικτών (δεν πατιέται εδώ).'); }} style={{ display: 'inline-block', padding: '5px 12px', borderRadius: 10, background: red, color: 'white', fontWeight: 700, textDecoration: 'none' }}>📡 REDIE 969 · Radio.co</a></li>
+                    <li>Ανοίξτε το <b>studio.radio.co</b> (συνδεδεμένοι) και πατήστε τον σελιδοδείκτη.</li>
+                    <li>Σε 2–3″ βγαίνει «✅ ενημερώθηκαν Χ ημέρες». Ανανεώστε αυτή τη σελίδα. Κάθε φορά ενημερώνονται οι τελευταίες 35 ημέρες.</li>
+                  </ol>
+                </details>
+              ) : null}
             </section>
 
             {/* AUDIENCE + ENGAGEMENT */}

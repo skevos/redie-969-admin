@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../lib/supabaseAdmin';
 import { jsonError, requireAdmin } from '../../../lib/serverAuth';
+import { RADIOCO_GROUPS, groupOf, radiocoImportToken } from '../../../lib/radioco';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -219,6 +220,32 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ---------- Radio.co, all sources (imported with the bookmarklet) ----------
+    const radioco: any = { setupNeeded: false, days: [], token: radiocoImportToken(), last_update: null };
+    {
+      const { data: rc, error: rcErr } = await db.from('radioco_daily').select('*').gte('day', sinceDate).order('day');
+      if (rcErr) radioco.setupNeeded = true;
+      else {
+        const groups: Record<string, number> = {};
+        const hours: Record<string, number> = {};
+        let peak = 0, sessions = 0, bot = 0;
+        for (const r of rc || []) {
+          sessions += r.sessions || 0; bot += r.bot_sessions || 0; peak = Math.max(peak, r.peak || 0);
+          for (const [c, n] of Object.entries(r.clients || {})) { const g = groupOf(c); groups[g] = (groups[g] || 0) + Number(n || 0); }
+          for (const [reg, sec] of Object.entries(r.ttsl_by_region || {})) hours[reg] = (hours[reg] || 0) + Number(sec || 0) / 3600;
+          if (!radioco.last_update || r.updated_at > radioco.last_update) radioco.last_update = r.updated_at;
+          const gr = Number((r.ttsl_by_region || {}).GR || 0) / 3600;
+          const tot = Object.values(r.ttsl_by_region || {}).reduce((a: number, b: any) => a + Number(b || 0), 0) / 3600;
+          const de = Number((r.ttsl_by_region || {}).DE || 0) / 3600;
+          radioco.days.push({ day: r.day, hours_gr: Math.round(gr * 10) / 10, hours_abroad: Math.round((tot - gr - de) * 10) / 10, real_sessions: (r.sessions || 0) - (r.bot_sessions || 0), peak: r.peak || 0 });
+        }
+        const round = (v: number) => Math.round(v * 10) / 10;
+        radioco.sessions = sessions; radioco.bot_sessions = bot; radioco.real_sessions = sessions - bot; radioco.peak = peak;
+        radioco.hours = Object.entries(hours).map(([region, h]) => ({ region, hours: round(h) })).sort((a, b) => b.hours - a.hours);
+        radioco.groups = [...RADIOCO_GROUPS.map(g => ({ key: g.key, label: g.label, n: groups[g.key] || 0 })), { key: 'other', label: 'Άλλο', n: groups.other || 0 }].filter(g => g.n > 0);
+      }
+    }
+
     // ---------- per show ----------
     const { data: shows } = await db.from('shows').select('id, title, producer_name, day_of_week, start_time, end_time, is_active').order('day_of_week').order('start_time');
     const showStats = [];
@@ -289,6 +316,7 @@ export async function GET(req: NextRequest) {
         uninstalls,
         versions: Array.from(verMap.entries()).map(([v, n]) => ({ v, n })).sort((a, b) => b.n - a.n),
       },
+      radioco,
       engagement: {
         chat: listenerChat.length, votes: votes.length, requests: reqs.length, likes: likes.length,
       },
