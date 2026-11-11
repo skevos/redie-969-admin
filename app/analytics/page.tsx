@@ -1,4 +1,5 @@
 "use client";
+import { adminDb } from "../lib/adminDb";
 import { useState, useEffect } from "react";
 import Sidebar from "../components/Sidebar";
 import { supabase } from "../lib/supabase";
@@ -44,7 +45,7 @@ export default function AnalyticsPage() {
 
   async function loadAnalytics() {
     try {
-      const devices = await fetchAll<any>(() => supabase.from('app_analytics').select('*').order('last_open', { ascending: false }));
+      const devices = await fetchAll<any>(() => adminDb.from('app_analytics').select('*').order('last_open', { ascending: false }));
       if (!devices) { setLoading(false); return; }
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -69,7 +70,7 @@ export default function AnalyticsPage() {
 
   async function loadLocationStats() {
     try {
-      const tokens = await fetchAll<any>(() => supabase.from('fcm_tokens').select('country, city'));
+      const tokens = await fetchAll<any>(() => adminDb.from('fcm_tokens').select('country, city'));
       if (tokens) {
         const countryMap = new Map<string, number>();
         tokens.forEach(t => { if (t.country) countryMap.set(t.country, (countryMap.get(t.country) || 0) + 1); });
@@ -80,7 +81,7 @@ export default function AnalyticsPage() {
 
   async function loadListeningStats() {
     try {
-      const sessions = await fetchAll<any>(() => supabase.from('listening_sessions').select('duration_seconds, platform'));
+      const sessions = await fetchAll<any>(() => adminDb.from('listening_sessions').select('duration_seconds, platform'));
       if (sessions) {
         const totalSessions = sessions.length;
         const totalSeconds = sessions.reduce((sum: number, s: any) => sum + (s.duration_seconds || 0), 0);
@@ -96,9 +97,9 @@ export default function AnalyticsPage() {
   async function loadNotifStats() {
     try {
       const [total, ios, android] = await Promise.all([
-        supabase.from('fcm_tokens').select('*', { count: 'exact', head: true }),
-        supabase.from('fcm_tokens').select('*', { count: 'exact', head: true }).eq('platform', 'ios'),
-        supabase.from('fcm_tokens').select('*', { count: 'exact', head: true }).eq('platform', 'android'),
+        adminDb.from('fcm_tokens').select('*', { count: 'exact', head: true }),
+        adminDb.from('fcm_tokens').select('*', { count: 'exact', head: true }).eq('platform', 'ios'),
+        adminDb.from('fcm_tokens').select('*', { count: 'exact', head: true }).eq('platform', 'android'),
       ]);
       if (!total.error) {
         setNotifStats({ total: total.count || 0, ios: ios.count || 0, android: android.count || 0 });

@@ -37,7 +37,7 @@ export default function StudioChatPage() {
   const [reports, setReports] = useState<any[]>([]);
 
   async function loadReports() {
-    const { data, error } = await supabase.from('chat_reports').select('*').eq('handled', false).order('created_at', { ascending: false }).limit(30);
+    const { data, error } = await adminDb.from('chat_reports').select('*').eq('handled', false).order('created_at', { ascending: false }).limit(30);
     if (!error) setReports(data || []);
   }
 

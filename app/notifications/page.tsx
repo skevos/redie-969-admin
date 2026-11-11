@@ -63,12 +63,12 @@ export default function NotificationsPage() {
   }
 
   async function loadTokenCount() {
-    const { count } = await supabase.from('fcm_tokens').select('*', { count: 'exact', head: true });
+    const { count } = await adminDb.from('fcm_tokens').select('*', { count: 'exact', head: true });
     setTokenCount(count || 0);
   }
 
   async function loadLocations() {
-    const { data } = await fetchAll<{ country: string | null; city: string | null }>(() => supabase.from('fcm_tokens').select('country, city'));
+    const { data } = await fetchAll<{ country: string | null; city: string | null }>(() => adminDb.from('fcm_tokens').select('country, city'));
     if (data) {
       const locationMap = new Map<string, number>();
       data.forEach(d => {
@@ -101,7 +101,7 @@ export default function NotificationsPage() {
     try {
       // 1. Get FCM tokens (filtered by location if needed), paged past the 1000-row cap
       const { data: tokens, error: tokensError } = await fetchAll<{ token: string }>(() => {
-        let query = supabase.from('fcm_tokens').select('token');
+        let query = adminDb.from('fcm_tokens').select('token');
         if (targetLocation !== 'all') {
           const [country, city] = targetLocation.split('|');
           query = query.eq('country', country);

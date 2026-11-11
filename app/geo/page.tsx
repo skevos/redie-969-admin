@@ -1,4 +1,5 @@
 "use client";
+import { adminDb } from "../lib/adminDb";
 import { useState, useEffect } from "react";
 import Sidebar from "../components/Sidebar";
 import { supabase } from "../lib/supabase";
@@ -38,16 +39,16 @@ export default function GeoAnalyticsPage() {
   async function loadStats() {
     try {
       const [all, android, ios] = await Promise.all([
-        supabase.from('app_analytics').select('*', { count: 'exact', head: true }),
-        supabase.from('app_analytics').select('*', { count: 'exact', head: true }).eq('platform', 'android'),
-        supabase.from('app_analytics').select('*', { count: 'exact', head: true }).eq('platform', 'ios'),
+        adminDb.from('app_analytics').select('*', { count: 'exact', head: true }),
+        adminDb.from('app_analytics').select('*', { count: 'exact', head: true }).eq('platform', 'android'),
+        adminDb.from('app_analytics').select('*', { count: 'exact', head: true }).eq('platform', 'ios'),
       ]);
       if (!all.error) {
         setTotalInstalls(all.count || 0);
         setTotalAndroid(android.count || 0);
         setTotalIos(ios.count || 0);
       }
-      const tokens = await fetchAll<any>(() => supabase.from('fcm_tokens').select('country, city, region, platform'));
+      const tokens = await fetchAll<any>(() => adminDb.from('fcm_tokens').select('country, city, region, platform'));
       if (tokens) {
         const countryMap = new Map<string, { count: number; iosCount: number; androidCount: number; cities: Map<string, number> }>();
         let geoCount = 0;

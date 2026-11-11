@@ -130,8 +130,10 @@ export default function ProducerChatPage() {
 
   async function sendMessage() {
     if (!newMessage.trim() || !roomId || !producer) return;
-    await supabase.from('chat_messages').insert({ room_id: roomId, nickname_snapshot: producer.name, role_snapshot: 'producer', message: newMessage.trim(), producer_id: producer.id, show_name: producer.show_1 || null, chat_color: producer.chat_color || '#9C27B0', chat_icon: producer.chat_icon || 'headphones', producer_photo: producer.photo_url || null });
+    const text = newMessage.trim();
     setNewMessage('');
+    const r = await fetch('/api/producer/chat', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ room_id: roomId, message: text }) });
+    if (!r.ok) { setNewMessage(text); const j = await r.json().catch(() => ({})); alert('Δεν στάλθηκε: ' + (j?.error || r.status)); }
   }
 
   if (!producer) {
