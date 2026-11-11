@@ -11,6 +11,7 @@ const SECTIONS: { title: string; items: { href: string; icon: string; label: str
     items: [
       { href: "/", icon: "🏠", label: "Dashboard" },
       { href: "/stats", icon: "📈", label: "Στατιστικά" },
+      { href: "/stories", icon: "📸", label: "Instagram Stories" },
       { href: "/analytics", icon: "📊", label: "Analytics" },
     ],
   },
