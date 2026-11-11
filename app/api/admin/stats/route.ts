@@ -203,6 +203,22 @@ export async function GET(req: NextRequest) {
     const listenerChat = chat.filter((m: any) => !['producer', 'admin', 'owner', 'system', 'bot', 'auto'].includes(String(m.role_snapshot || '').toLowerCase()));
     bump(listenerChat, 'chat'); bump(votes, 'votes'); bump(reqs, 'requests'); bump(likes, 'likes');
 
+    // ---------- uninstalls (estimate: phones that push reports as gone, logged by /api/send-notification) ----------
+    let uninstalls: any = { setupNeeded: false, period: 0, total: 0, ios: 0, android: 0 };
+    {
+      const { data: un, error: unErr } = await db.from('push_uninstalls').select('detected_at, platform').order('detected_at', { ascending: false }).limit(20000);
+      if (unErr) uninstalls.setupNeeded = true;
+      else {
+        uninstalls.total = (un || []).length;
+        const inP = (un || []).filter((u: any) => new Date(u.detected_at).getTime() >= since);
+        uninstalls.period = inP.length;
+        uninstalls.ios = inP.filter((u: any) => u.platform === 'ios').length;
+        uninstalls.android = inP.filter((u: any) => u.platform === 'android').length;
+        uninstalls.last_at = un && un[0] ? un[0].detected_at : null;
+        for (const u of inP) { const dd = daily.get(athens(new Date(u.detected_at)).date) as any; if (dd) dd.uninstalls = (dd.uninstalls || 0) + 1; }
+      }
+    }
+
     // ---------- per show ----------
     const { data: shows } = await db.from('shows').select('id, title, producer_name, day_of_week, start_time, end_time, is_active').order('day_of_week').order('start_time');
     const showStats = [];
@@ -268,6 +284,7 @@ export async function GET(req: NextRequest) {
         ios: devices.filter(d => d.platform === 'ios').length,
         android: devices.filter(d => d.platform === 'android').length,
         push_devices: pushCount.count || 0,
+        uninstalls,
         versions: Array.from(verMap.entries()).map(([v, n]) => ({ v, n })).sort((a, b) => b.n - a.n),
       },
       engagement: {

@@ -126,7 +126,15 @@ export async function POST(request: NextRequest) {
       try {
         const admin = getSupabaseAdmin();
         for (let i = 0; i < invalidTokens.length; i += 200) {
-          await admin.from('fcm_tokens').delete().in('token', invalidTokens.slice(i, i + 200));
+          const chunk = invalidTokens.slice(i, i + 200);
+          // 📉 keep a trace (no token) so the dashboard can estimate uninstalls; table may not exist yet
+          try {
+            const { data: gone } = await admin.from('fcm_tokens').select('platform, country, city, created_at').in('token', chunk);
+            if (gone && gone.length) {
+              await admin.from('push_uninstalls').insert(gone.map((g: any) => ({ platform: g.platform, country: g.country, city: g.city, installed_at: g.created_at })));
+            }
+          } catch {}
+          await admin.from('fcm_tokens').delete().in('token', chunk);
         }
       } catch (e) {
         console.error('Dead token cleanup error:', e);

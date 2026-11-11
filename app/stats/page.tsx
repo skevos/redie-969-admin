@@ -45,8 +45,8 @@ export default function StatsPage() {
       ['Μοναδικοί ακροατές', d.period.unique_listeners], ['Ώρες ακρόασης', d.period.listen_hours], ['Μέσος χρόνος ακρόασης (λεπτά)', d.period.avg_minutes],
       ['Μέγιστοι ταυτόχρονοι', d.period.peak, fmtTime(d.period.peak_at)], ['Χρήστες εφαρμογής', d.period.app_users], ['Ανοίγματα εφαρμογής', d.period.app_opens], ['Νέες εγκαταστάσεις', d.period.new_installs],
       [],
-      ['Ημέρα', 'Ακροατές', 'Ώρες', 'Μέγιστοι ταυτόχρονοι', 'Χρήστες εφαρμογής', 'Ανοίγματα', 'Νέες εγκαταστάσεις', 'Μηνύματα chat', 'Ψήφοι', 'Αιτήματα', '❤️'],
-      ...d.daily.map((x: any) => [x.date, x.listeners, x.hours, x.peak, x.appUsers, x.opens, x.newInstalls, x.chat, x.votes, x.requests, x.likes]),
+      ['Ημέρα', 'Ακροατές', 'Ώρες', 'Μέγιστοι ταυτόχρονοι', 'Χρήστες εφαρμογής', 'Ανοίγματα', 'Νέες εγκαταστάσεις', 'Απεγκαταστάσεις (εκτ.)', 'Μηνύματα chat', 'Ψήφοι', 'Αιτήματα', '❤️'],
+      ...d.daily.map((x: any) => [x.date, x.listeners, x.hours, x.peak, x.appUsers, x.opens, x.newInstalls, x.uninstalls || 0, x.chat, x.votes, x.requests, x.likes]),
       [],
       ['Εκπομπή', 'Παραγωγός', 'Ημέρα', 'Ώρα', 'Μέσος όρος ακροατών', 'Μέγιστοι', 'Μοναδικοί (μ.ο.)', 'Μηνύματα chat'],
       ...d.shows.map((s: any) => [s.title, s.producer || '', DAYS_GR[s.day_of_week] || '', `${s.start}-${s.end}`, s.avg, s.peak, s.unique, s.chat]),
@@ -217,11 +217,13 @@ export default function StatsPage() {
                   ['Πάνω από 14 ημέρες χωρίς άνοιγμα', n(d.audience.inactive14)],
                   ['iOS / Android (όλες)', `${n(d.audience.ios)} / ${n(d.audience.android)}`],
                   ['Δέχονται ειδοποιήσεις', n(d.audience.push_devices)],
+                  ['📉 Απεγκαταστάσεις (εκτίμηση, περίοδος)', d.audience.uninstalls?.setupNeeded ? 'χρειάζεται SQL' : `${n(d.audience.uninstalls?.period)}  (iOS ${d.audience.uninstalls?.ios} · Android ${d.audience.uninstalls?.android})`],
                 ].map(([k, v]) => (
                   <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #f3f4f6', fontSize: 13.5 }}>
                     <span style={{ color: '#4b5563' }}>{k}</span><b>{v}</b>
                   </div>
                 ))}
+                <p style={{ margin: '8px 0 0', fontSize: 11, color: '#9ca3af' }}>Οι απεγκαταστάσεις εντοπίζονται όταν στέλνετε ειδοποίηση: όσα κινητά δεν έχουν πια την εφαρμογή καταγράφονται εκείνη τη στιγμή (μετράνε από 11/11/2026). Επίσημα νούμερα: Play Console «Uninstalled users», App Store Connect «Deletions».</p>
                 <p style={{ margin: '16px 0 8px', fontSize: 13, fontWeight: 700, color: '#1f2937' }}>Εκδόσεις (ενεργοί 30 ημερών)</p>
                 {d.audience.versions.map((v: any) => {
                   const tot = d.audience.versions.reduce((a: number, b: any) => a + b.n, 0) || 1;
