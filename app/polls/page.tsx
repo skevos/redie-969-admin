@@ -18,6 +18,9 @@ export default function PollsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingPoll, setEditingPoll] = useState<any>(null);
   const [pollVotes, setPollVotes] = useState<{ [key: number]: number }>({});
+  // real votes per answer: { pollId: { 1: n, 2: n, ... } }
+  const [optVotes, setOptVotes] = useState<{ [key: number]: { [opt: number]: number } }>({});
+  const [extraDraft, setExtraDraft] = useState<{ [key: string]: string }>({});
   const [countdowns, setCountdowns] = useState<{ [key: number]: string }>({});
   const [countdownInput, setCountdownInput] = useState<{ [key: number]: number }>({});
   const [saving, setSaving] = useState(false);
@@ -79,15 +82,34 @@ export default function PollsPage() {
     setLoading(false);
     if (data) {
       const votes: { [key: number]: number } = {};
+      const perOpt: { [key: number]: { [opt: number]: number } } = {};
       for (const poll of data) {
-        const { count } = await supabase
+        const { data: rows } = await supabase
           .from("poll_votes")
-          .select("*", { count: "exact", head: true })
-          .eq("poll_id", poll.id);
-        votes[poll.id] = count || 0;
+          .select("selected_option")
+          .eq("poll_id", poll.id)
+          .limit(10000);
+        const m: { [opt: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0 };
+        (rows || []).forEach((r: any) => { m[r.selected_option] = (m[r.selected_option] || 0) + 1; });
+        perOpt[poll.id] = m;
+        votes[poll.id] = (rows || []).length;
       }
       setPollVotes(votes);
+      setOptVotes(perOpt);
     }
+  }
+
+  const extraOf = (poll: any, i: number) => {
+    const v = (poll.extra_votes || {})[String(i)];
+    return typeof v === "number" ? v : parseInt(v || "0") || 0;
+  };
+
+  async function setExtra(poll: any, i: number, value: number) {
+    const next = { ...(poll.extra_votes || {}), [String(i)]: Math.max(0, Math.round(value)) };
+    const { error } = await adminDb.from("polls").update({ extra_votes: next }).eq("id", poll.id);
+    if (error) { alert("Σφάλμα: " + error.message + (/extra_votes/.test(error.message) ? " (χρειάζεται το SQL)" : "")); return; }
+    setPolls((prev: any[]) => prev.map((p) => (p.id === poll.id ? { ...p, extra_votes: next } : p)));
+    setExtraDraft((d) => { const c = { ...d }; delete c[`${poll.id}_${i}`]; return c; });
   }
 
   async function savePoll() {
@@ -316,7 +338,12 @@ export default function PollsPage() {
             <div style={{ display: "grid", gap: 16 }}>
               {polls.map((poll) => {
                 const realVotes = pollVotes[poll.id] || 0;
-                const displayVotes = realVotes + (poll.vote_multiplier || 0);
+                const extraTotal = [1, 2, 3, 4].reduce((a, i) => a + extraOf(poll, i), 0);
+                const displayVotes = realVotes + extraTotal + (poll.vote_multiplier || 0);
+                const opts = [poll.option_1, poll.option_2, poll.option_3, poll.option_4]
+                  .map((label: any, idx: number) => ({ label, i: idx + 1 }))
+                  .filter((o: any) => o.label);
+                const optTotal = opts.reduce((a: number, o: any) => a + (optVotes[poll.id]?.[o.i] || 0) + extraOf(poll, o.i), 0);
                 const hasCountdown = !!countdowns[poll.id];
                 const countdownExpired = countdowns[poll.id] === "ΛΗΞΕ";
                 const countdownActive =
@@ -411,37 +438,50 @@ export default function PollsPage() {
                           )}
                         </div>
 
-                        {/* Options */}
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 8,
-                            flexWrap: "wrap",
-                            marginBottom: 10,
-                          }}
-                        >
-                          {[
-                            poll.option_1,
-                            poll.option_2,
-                            poll.option_3,
-                            poll.option_4,
-                          ]
-                            .filter(Boolean)
-                            .map((opt, i) => (
-                              <span
-                                key={i}
-                                style={{
-                                  background: "#f3f4f6",
-                                  padding: "4px 12px",
-                                  borderRadius: 8,
-                                  fontSize: 12,
-                                  color: "#374151",
-                                  fontWeight: 500,
-                                }}
-                              >
-                                {opt}
-                              </span>
-                            ))}
+                        {/* Results per answer */}
+                        <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+                          {opts.map((o: any) => {
+                            const real = optVotes[poll.id]?.[o.i] || 0;
+                            const extra = extraOf(poll, o.i);
+                            const tot = real + extra;
+                            const pct = optTotal > 0 ? Math.round((tot * 100) / optTotal) : 0;
+                            const dk = `${poll.id}_${o.i}`;
+                            return (
+                              <div key={o.i} style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10, padding: "8px 12px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                                  <span style={{ fontWeight: 600, fontSize: 13, color: "#1f2937", flex: "1 1 160px" }}>{o.label}</span>
+                                  <span style={{ fontSize: 13, color: "#1f2937" }}>
+                                    <strong>{tot}</strong> ψήφοι · <strong style={{ color: "#e53935" }}>{pct}%</strong>
+                                  </span>
+                                  <span style={{ fontSize: 11, color: "#6b7280" }}>
+                                    ({real} από την εφαρμογή{extra > 0 ? ` + ${extra} εκτός εφαρμογής` : ""})
+                                  </span>
+                                </div>
+                                <div style={{ height: 6, background: "#e5e7eb", borderRadius: 3, margin: "6px 0" }}>
+                                  <div style={{ width: `${pct}%`, height: "100%", background: "#e53935", borderRadius: 3 }} />
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <span style={{ fontSize: 11, color: "#6b7280" }}>Ψήφοι εκτός εφαρμογής (τηλέφωνο, studio, social):</span>
+                                  <button onClick={() => setExtra(poll, o.i, extra - 1)} disabled={extra <= 0} style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}>−1</button>
+                                  <input
+                                    type="number" min={0}
+                                    value={extraDraft[dk] ?? String(extra)}
+                                    onChange={(e) => setExtraDraft((d) => ({ ...d, [dk]: e.target.value }))}
+                                    onBlur={() => { const v = parseInt(extraDraft[dk] ?? ""); if (!isNaN(v) && v !== extra) setExtra(poll, o.i, v); }}
+                                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                                    style={{ width: 64, padding: "2px 6px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 12 }}
+                                  />
+                                  <button onClick={() => setExtra(poll, o.i, extra + 1)} style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}>+1</button>
+                                  <button onClick={() => setExtra(poll, o.i, extra + 5)} style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}>+5</button>
+                                  <button onClick={() => setExtra(poll, o.i, extra + 10)} style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}>+10</button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>
+                            Σύνολο: <strong style={{ color: "#1f2937" }}>{optTotal}</strong> ψήφοι
+                            {" "}({realVotes} από την εφαρμογή{extraTotal > 0 ? ` + ${extraTotal} εκτός εφαρμογής` : ""})
+                          </p>
                         </div>
 
                         {/* Sponsor */}

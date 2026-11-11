@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '../../lib/supabaseAdmin';
+import { rememberCurrentArtwork } from '../../lib/songArtwork';
 import { NextResponse } from 'next/server';
 import { resolveAutoMessages, fillTemplate } from '../../lib/autoMessages';
 
@@ -86,6 +87,8 @@ function showRange(show: any) {
 }
 
 export async function GET(request: Request) {
+  // Every run: remember the cover of the song playing now (for "Τι έπαιξε πριν" in the app)
+  await rememberCurrentArtwork().catch(() => {});
   try {
     const { data: config } = await supabase.from('chat_config').select('*').eq('id', 1).single();
     if (!config?.auto_mode) {
