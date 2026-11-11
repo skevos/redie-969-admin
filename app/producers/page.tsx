@@ -372,40 +372,6 @@ export default function ProducersPage() {
                     position: 'relative',
                   }}
                 >
-                  {/* Badges */}
-                  <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 6 }}>
-                  {reminders > 0 && (
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      background: 'linear-gradient(135deg, #fefce8 0%, #fef08a 100%)',
-                      padding: '6px 12px',
-                      borderRadius: 20,
-                      border: '1px solid #fde047',
-                    }}>
-                      <span style={{ color: '#a16207', fontSize: 14 }}>⏰</span>
-                      <span style={{ color: '#a16207', fontSize: 14, fontWeight: 700 }}>{reminders}</span>
-                    </div>
-                  )}
-                  {likes > 0 && (
-                    <div style={{
-                      position: 'absolute',
-                      top: 12,
-                      right: 12,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
-                      padding: '6px 12px',
-                      borderRadius: 20,
-                      border: '1px solid #fecaca',
-                    }}>
-                      <span style={{ color: '#dc2626', fontSize: 14 }}>❤️</span>
-                      <span style={{ color: '#dc2626', fontSize: 14, fontWeight: 700 }}>{likes}</span>
-                    </div>
-                  )}
-                  </div>
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }} title="Θέση στην εφαρμογή (1 = πρώτος). Κενό = στο τέλος, αλφαβητικά">
@@ -445,6 +411,14 @@ export default function ProducersPage() {
                       {producer.hidden_in_app && (
                         <p style={{ margin: '4px 0 0', fontSize: 11, color: '#6b7280', fontWeight: 600 }}>🙈 Κρυφός στην εφαρμογή · μπαίνει κανονικά στο chat</p>
                       )}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                        <span title="Ακροατές που τον έχουν στους αγαπημένους" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: likes > 0 ? '#fef2f2' : '#f9fafb', color: likes > 0 ? '#dc2626' : '#9ca3af', border: `1px solid ${likes > 0 ? '#fecaca' : '#e5e7eb'}` }}>
+                          ❤️ {likes} <span style={{ fontWeight: 500 }}>αγαπημένα</span>
+                        </span>
+                        <span title="Ακροατές με υπενθύμιση για την εκπομπή του" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: reminders > 0 ? '#fefce8' : '#f9fafb', color: reminders > 0 ? '#a16207' : '#9ca3af', border: `1px solid ${reminders > 0 ? '#fde047' : '#e5e7eb'}` }}>
+                          ⏰ {reminders} <span style={{ fontWeight: 500 }}>υπενθυμίσεις</span>
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 16, paddingTop: 16, borderTop: '1px solid #f3f4f6' }}>
