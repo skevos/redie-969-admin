@@ -39,6 +39,9 @@ export default function ContentPage() {
   const [androidStoreUrl, setAndroidStoreUrl] = useState('https://play.google.com/store/apps/details?id=gr.redie969.redie_969_app');
   const [iosStoreUrl, setIosStoreUrl] = useState('https://apps.apple.com/app/id6758665312');
   const [liveUrl, setLiveUrl] = useState('');
+  const [updOn, setUpdOn] = useState(false);
+  const [updVersion, setUpdVersion] = useState('');
+  const [updMsg, setUpdMsg] = useState('');
   const [liveActive, setLiveActive] = useState(false);
   const [autoMsgs, setAutoMsgs] = useState<Record<string, string>>({ ...AUTO_MESSAGE_DEFAULTS });
 
@@ -164,6 +167,9 @@ export default function ContentPage() {
         setIosStoreUrl(data.ios_store_url || 'https://apps.apple.com/app/id6758665312');
         setLiveUrl(data.live_url || '');
         setLiveActive(data.live_active || false);
+        setUpdOn(data.update_prompt_enabled === true);
+        setUpdVersion(data.latest_version || '');
+        setUpdMsg(data.update_message || '');
         setAutoMsgs(resolveAutoMessages(data));
       }
     } catch (e) { console.log(e); }
@@ -255,6 +261,12 @@ export default function ContentPage() {
   async function saveAutoMessages() {
     setSaving('automsgs');
     const { error } = await adminDb.from('settings').update({ ...autoMsgs, updated_at: new Date().toISOString() }).eq('id', 1);
+    finishSave(error);
+  }
+
+  async function saveUpdatePrompt() {
+    setSaving('update');
+    const { error } = await adminDb.from('settings').update({ update_prompt_enabled: updOn, latest_version: updVersion.trim() || null, update_message: updMsg.trim() || null, updated_at: new Date().toISOString() }).eq('id', 1);
     finishSave(error);
   }
 
@@ -494,6 +506,31 @@ export default function ContentPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <button onClick={saveAutoMessages} style={{ padding: '12px 24px', background: saving === 'automsgs' ? '#22c55e' : 'linear-gradient(135deg, #e53935, #c62828)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer' }}>{saving === 'automsgs' ? '✓ Saved!' : '💾 Save'}</button>
               <button onClick={() => setAutoMsgs({ ...AUTO_MESSAGE_DEFAULTS })} style={{ padding: '12px 18px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: 12, fontWeight: 500, cursor: 'pointer' }}>↩️ Αρχικά κείμενα</button>
+            </div>
+          </div>
+
+          {/* New version prompt */}
+          <div style={{ background: 'white', borderRadius: 20, padding: 28, border: '1px solid #f3f4f6' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1f2937', margin: 0 }}>📲 Νέα έκδοση</h2>
+                <p style={{ color: '#6b7280', fontSize: 13, margin: '4px 0 0 0' }}>Μήνυμα «Υπάρχει νέα έκδοση» με κουμπί «Ενημέρωση» σε όσους έχουν παλιότερη έκδοση (μία φορά τη μέρα). Λειτουργεί από την 1.0.9 και μετά — για τις παλιότερες στείλε push.</p>
+              </div>
+              <Toggle checked={updOn} onChange={() => setUpdOn(!updOn)} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 12, marginBottom: 20 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Τελευταία έκδοση</label>
+                <input type="text" value={updVersion} onChange={e => setUpdVersion(e.target.value)} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box' }} placeholder="π.χ. 1.1.0" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Μήνυμα (προαιρετικό)</label>
+                <input type="text" value={updMsg} onChange={e => setUpdMsg(e.target.value)} style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, background: '#f9fafb', boxSizing: 'border-box' }} placeholder="π.χ. Νέα έκδοση με CarPlay! Ενημέρωσέ την τώρα." />
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button onClick={saveUpdatePrompt} style={{ padding: '12px 24px', background: saving === 'update' ? '#22c55e' : 'linear-gradient(135deg, #e53935, #c62828)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 600, cursor: 'pointer' }}>{saving === 'update' ? '✓ Saved!' : '💾 Save'}</button>
+              <span style={{ fontSize: 13, color: updOn ? '#22c55e' : '#9ca3af' }}>{updOn && updVersion ? `✅ Όσοι έχουν κάτω από ${updVersion} βλέπουν το μήνυμα` : '⬜ Ανενεργό'}</span>
             </div>
           </div>
 

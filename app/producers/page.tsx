@@ -169,10 +169,25 @@ export default function ProducersPage() {
     if (!file) return;
 
     setUploading(true);
-    const fileExt = file.name.split('.').pop();
+    // Shrink before upload: max 600px JPEG (a 10 MB photo becomes ~60 KB), cached by phones for a year
+    let body: Blob = file;
+    let fileExt = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    try {
+      const bmp = await createImageBitmap(file);
+      const scale = Math.min(1, 600 / Math.max(bmp.width, bmp.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bmp.width * scale);
+      canvas.height = Math.round(bmp.height * scale);
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#111116';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      const blob: Blob | null = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85));
+      if (blob && blob.size < file.size) { body = new Blob([blob], { type: 'image/jpeg' }); fileExt = 'jpg'; }
+    } catch { /* unsupported format: upload as is */ }
     const fileName = `producer_${Date.now()}.${fileExt}`;
 
-    const up = await adminUpload('producers', fileName, file);
+    const up = await adminUpload('producers', fileName, body, { cacheControl: '31536000' });
 
     if (up.error || !up.publicUrl) {
       alert('Σφάλμα upload: ' + (up.error?.message || ''));
