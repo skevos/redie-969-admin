@@ -24,6 +24,7 @@ interface Producer {
   chat_color: string | null;
   chat_icon: string | null;
   hidden_in_app?: boolean;
+  sort_order?: number | null;
 }
 
 // All producer reads/writes go through the server (service role), because producers hidden
@@ -59,6 +60,14 @@ export default function ProducersPage() {
     loadFavoriteCounts();
     loadReminderCounts();
   }, []);
+
+  async function savePosition(p: Producer, value: string) {
+    const n = value.trim() === '' ? null : Math.max(1, parseInt(value) || 1);
+    if ((p.sort_order ?? null) === n) return;
+    const r = await fetch('/api/admin/producers', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'update', id: p.id, data: { sort_order: n } }) });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); alert('Σφάλμα: ' + (j?.error || r.status) + (/sort_order/.test(j?.error || '') ? ' (χρειάζεται το SQL)' : '')); return; }
+    loadProducers();
+  }
 
   async function loadProducers() {
     setLoading(true);
@@ -399,6 +408,18 @@ export default function ProducersPage() {
                   </div>
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }} title="Θέση στην εφαρμογή (1 = πρώτος). Κενό = στο τέλος, αλφαβητικά">
+                      <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 600 }}>ΘΕΣΗ</span>
+                      <input
+                        key={`pos_${producer.id}_${producer.sort_order ?? ''}`}
+                        type="number" min={1}
+                        defaultValue={producer.sort_order ?? ''}
+                        onBlur={e => savePosition(producer, e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                        placeholder="–"
+                        style={{ width: 46, padding: '6px 4px', textAlign: 'center', border: '2px solid #e5e7eb', borderRadius: 10, fontSize: 16, fontWeight: 700, color: '#e53935' }}
+                      />
+                    </div>
                     {producer.photo_url ? (
                       <img
                         src={producer.photo_url}
