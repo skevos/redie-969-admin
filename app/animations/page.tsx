@@ -22,13 +22,18 @@ const ICONS: Record<string, string> = {
   emojis: '😀', pixel_rain: '👾', glitch: '📺', text_animation: '✍️',
   // 1.0.9 (visible on phones from app 1.0.9)
   birthday: '🎂', dedication: '💌', lucky_wheel: '🎰', live_reactions: '❤️‍🔥', countdown: '🔢',
-  glenti: '🍽️', kalymnos_sea: '🌊', vinyl: '💿', bass_drop: '⚡', disco_ball: '🪩'
+  glenti: '🍽️', kalymnos_sea: '🌊', vinyl: '💿', bass_drop: '⚡', disco_ball: '🪩',
+  // Christmas (Lottie, from app 1.0.9)
+  lottie_sleigh: '🛷', lottie_sleigh2: '🦌', lottie_tree: '🎄', lottie_tree2: '🎄', lottie_snowglobe: '🔮', lottie_gifts: '🎁',
+  lottie_gift_open: '🎁', lottie_reindeer: '🦌', lottie_snowman: '⛄', lottie_santa: '🎅', lottie_socks: '🧦', lottie_confetti: '🎉'
 };
+// Christmas Lottie animations: a small moving preview on the card
+const LOTTIE_TYPES = ['lottie_sleigh', 'lottie_sleigh2', 'lottie_tree', 'lottie_tree2', 'lottie_snowglobe', 'lottie_gifts', 'lottie_gift_open', 'lottie_reindeer', 'lottie_snowman', 'lottie_santa', 'lottie_socks', 'lottie_confetti'];
 
 // Types that open a settings form before they go live
 const CONFIG_TYPES = ['birthday', 'dedication', 'lucky_wheel', 'countdown', 'bass_drop'];
 // Types that get a fresh started_at on every start (phones that open late jump to the right moment)
-const NEW_TYPES = ['birthday', 'dedication', 'lucky_wheel', 'live_reactions', 'countdown', 'glenti', 'kalymnos_sea', 'vinyl', 'bass_drop', 'disco_ball'];
+const NEW_TYPES = ['birthday', 'dedication', 'lucky_wheel', 'live_reactions', 'countdown', 'glenti', 'kalymnos_sea', 'vinyl', 'bass_drop', 'disco_ball', 'lottie_sleigh', 'lottie_sleigh2', 'lottie_tree', 'lottie_tree2', 'lottie_snowglobe', 'lottie_gifts', 'lottie_gift_open', 'lottie_reindeer', 'lottie_snowman', 'lottie_santa', 'lottie_socks', 'lottie_confetti'];
 
 const HINTS: Record<string, string> = {
   birthday: 'Τούρτα με κεράκια, μπαλόνια και το όνομα',
@@ -41,9 +46,22 @@ const HINTS: Record<string, string> = {
   vinyl: 'Δίσκος που γυρίζει και πετάει νότες',
   bass_drop: 'Λάμψη + τρέμουλο οθόνης σε κάθε μέτρο',
   disco_ball: 'Ντισκομπάλα με δέσμες φωτός',
+  lottie_sleigh: 'Ο Άγιος Βασίλης περνάει με το έλκηθρο πάνω από την οθόνη',
+  lottie_sleigh2: 'Έλκηθρο με τάρανδους μέσα στο χιόνι',
+  lottie_tree: 'Στολισμένο δέντρο με δώρα',
+  lottie_tree2: 'Χαρούμενο δέντρο με δώρα',
+  lottie_snowglobe: 'Χιονόμπαλα με χιονάνθρωπο',
+  lottie_gifts: 'Δώρα που ανοίγουν',
+  lottie_gift_open: 'Δώρο που ανοίγει με στολίδια',
+  lottie_reindeer: 'Τάρανδος που χαιρετάει',
+  lottie_snowman: 'Χιονάνθρωπος που χοροπηδάει',
+  lottie_santa: 'Ο Άγιος Βασίλης έρχεται (χιονόμπαλα)',
+  lottie_socks: 'Κάλτσες με μπισκοτάνθρωπο',
+  lottie_confetti: 'Κομφετί σε όλη την οθόνη',
 };
 
 const CATEGORIES = {
+  '🎄 Χριστούγεννα (νέα)': LOTTIE_TYPES,
   '🎙️ Κοινό & Εκπομπή (νέα)': ['birthday', 'dedication', 'lucky_wheel', 'live_reactions', 'countdown'],
   '🇬🇷 Γλέντι & Κάλυμνος (νέα)': ['glenti', 'kalymnos_sea'],
   '🎧 DJ (νέα)': ['vinyl', 'bass_drop', 'disco_ball'],
@@ -327,7 +345,9 @@ export default function AnimationsPage() {
                           }
                         }}
                       >
-                        <div style={{ fontSize: 36, marginBottom: 8 }}>{ICONS[anim.type] || '🎨'}</div>
+                        {LOTTIE_TYPES.includes(anim.type)
+                          ? <img src={`/anim/${anim.type}.gif`} alt="" style={{ width: 72, height: 72, objectFit: 'contain', borderRadius: 10, marginBottom: 6 }} />
+                          : <div style={{ fontSize: 36, marginBottom: 8 }}>{ICONS[anim.type] || '🎨'}</div>}
                         <div style={{ color: 'white', fontWeight: 600, fontSize: 13 }}>{anim.name}</div>
                         {HINTS[anim.type] && !anim.is_active && <div style={{ color: '#888', fontSize: 10, marginTop: 4, lineHeight: 1.3 }}>{HINTS[anim.type]}</div>}
                         {anim.is_active && anim.type === 'lucky_wheel' && anim.settings?.winner && <div style={{ color: 'white', fontSize: 11, marginTop: 4 }}>🏆 {anim.settings.winner}</div>}
