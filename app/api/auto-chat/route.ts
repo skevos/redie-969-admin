@@ -187,7 +187,14 @@ export async function GET(request: Request) {
       }
     }
 
-    if (config.is_chat_open && !currentShow && !upcomingShow && config.active_room_id) {
+    // A chat opened by hand in the Studio (room without a show) stays open until it is closed by hand
+    let manualRoom = false;
+    if (config.is_chat_open && config.active_room_id) {
+      const { data: activeRoom } = await supabase.from('chat_rooms').select('show_id').eq('id', config.active_room_id).maybeSingle();
+      manualRoom = !!activeRoom && !activeRoom.show_id;
+    }
+
+    if (config.is_chat_open && !currentShow && !upcomingShow && config.active_room_id && !manualRoom) {
       const { data: messages } = await supabase
         .from('chat_messages')
         .select('*')
