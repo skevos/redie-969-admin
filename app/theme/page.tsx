@@ -38,9 +38,14 @@ const BUILT_IN: { name: string; colors: Theme }[] = [
   { name: "Χρυσό", colors: { ...DEFAULTS, accent: "#FFFFB020", background: "#FF080604", card: "#FF18140C" } },
   { name: "Ροζ", colors: { ...DEFAULTS, accent: "#FFFF3D9A", background: "#FF0A0408", card: "#FF1C0E16" } },
 ];
+// The same combinations, with the logo in the theme's colour too (the originals above keep the original logo)
+const BUILT_IN_LOGO = BUILT_IN.slice(1).map(p => ({ name: p.name + " + λογότυπο", colors: { ...p.colors, logo: "accent" } }));
 
 function norm(t: any): Theme {
   const out: Theme = { ...DEFAULTS };
+  const lg = t && typeof t === "object" ? String(t.logo ?? "") : "";
+  if (lg === "accent") out.logo = "accent";
+  else if (/^#?[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(lg)) { let v = lg.replace("#", "").toUpperCase(); if (v.length === 6) v = "FF" + v; out.logo = "#" + v; }
   if (t && typeof t === "object") for (const k of Object.keys(DEFAULTS)) {
     let v = String(t[k] ?? "").replace("#", "").toUpperCase();
     if (/^[0-9A-F]{6}$/.test(v)) v = "FF" + v;
@@ -55,7 +60,7 @@ const css = (v: string) => {
   return `rgba(${r},${g},${b},${a.toFixed(3)})`;
 };
 const withAlpha = (v: string, a: number) => css("#" + Math.round(a * 255).toString(16).padStart(2, "0").toUpperCase() + v.slice(3));
-const same = (a: Theme, b: Theme) => Object.keys(DEFAULTS).every(k => a[k] === b[k]);
+const same = (a: Theme, b: Theme) => Object.keys(DEFAULTS).every(k => a[k] === b[k]) && (a.logo || "") === (b.logo || "");
 
 export default function ThemePage() {
   const [theme, setTheme] = useState<Theme>(DEFAULTS);
@@ -65,6 +70,8 @@ export default function ThemePage() {
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   const [setupNeeded, setSetupNeeded] = useState(false);
+  const [season, setSeason] = useState<string>("none");
+  const [seasonReady, setSeasonReady] = useState(true);
 
   useEffect(() => { load(); }, []);
 
@@ -72,6 +79,8 @@ export default function ThemePage() {
     const { data, error } = await adminDb.from("settings").select("app_theme").eq("id", 1).maybeSingle();
     if (error && /app_theme/.test(error.message || "")) setSetupNeeded(true);
     const t = norm((data as any)?.app_theme);
+    const ss = await adminDb.from("settings").select("seasonal_theme").eq("id", 1).maybeSingle();
+    if (ss.error) setSeasonReady(false); else setSeason(((ss.data as any)?.seasonal_theme as string) || "none");
     setTheme(t); setSaved(t);
     const p = await adminDb.from("app_theme_presets").select("id, name, colors").order("created_at", { ascending: false });
     if (p.error) { if (/app_theme_presets/.test(p.error.message || "")) setSetupNeeded(true); }
@@ -93,6 +102,13 @@ export default function ThemePage() {
   async function resetToOriginal() {
     if (!confirm("Επαναφορά στα αρχικά χρώματα του REDIE 969 και αποθήκευση;")) return;
     await save(DEFAULTS);
+  }
+
+  async function saveSeason(v: string) {
+    setSeason(v);
+    const { error } = await adminDb.from("settings").update({ seasonal_theme: v === "none" ? null : v }).eq("id", 1);
+    if (error) { alert("Σφάλμα: " + error.message); return; }
+    flash(v === "christmas" ? "🎄 Το χριστουγεννιάτικο θέμα άναψε στην εφαρμογή" : "Τα στολίδια αφαιρέθηκαν από την εφαρμογή");
   }
 
   async function savePreset() {
@@ -155,6 +171,26 @@ export default function ThemePage() {
                   </div>
                 );
               })}
+              {/* Logo colour: only the red of the logo changes, the picture stays the same */}
+              <div style={{ padding: "14px 0 4px", borderTop: "1px solid #f3f4f6", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ position: "relative", width: 44, height: 44, borderRadius: 10, background: "#050508", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <img src="/app-logo.png" alt="" style={{ height: 34, ...(theme.logo ? { opacity: 0 } : {}) }} />
+                  {theme.logo && <div style={{ position: "absolute", width: 23, height: 34, background: theme.logo === "accent" ? c.accent : css(theme.logo), WebkitMaskImage: "url(/app-logo.png)", maskImage: "url(/app-logo.png)", WebkitMaskSize: "contain", maskSize: "contain", WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat" } as React.CSSProperties} />}
+                </div>
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#111827" }}>Λογότυπο</div>
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>Αλλάζει μόνο το κόκκινο του λογότυπου· η εικόνα μένει ίδια</div>
+                </div>
+                {[["original", "Original"], ["accent", "Κύριο χρώμα"], ["custom", "Δικό μου"]].map(([k, label]) => {
+                  const cur = !theme.logo ? "original" : theme.logo === "accent" ? "accent" : "custom";
+                  return <button key={k} onClick={() => setTheme(t => { const n = { ...t }; if (k === "original") delete n.logo; else if (k === "accent") n.logo = "accent"; else n.logo = t.logo && t.logo !== "accent" ? t.logo : t.accent; return n; })}
+                    style={{ ...btn(cur === k ? "#dc2626" : "#f3f4f6", cur === k ? "white" : "#374151"), padding: "8px 12px", fontSize: 13 }}>{label}</button>;
+                })}
+                {theme.logo && theme.logo !== "accent" && (
+                  <input type="color" value={rgbOf(theme.logo)} onChange={e => setTheme(t => ({ ...t, logo: "#FF" + e.target.value.slice(1).toUpperCase() }))}
+                    style={{ width: 40, height: 36, border: "1px solid #e5e7eb", borderRadius: 8, padding: 2, background: "white", cursor: "pointer" }} />
+                )}
+              </div>
               <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
                 <button onClick={() => save()} disabled={busy === "save"} style={btn(dirty ? "#dc2626" : "#9ca3af")}>{busy === "save" ? "Αποθήκευση…" : "💾 Αποθήκευση στην εφαρμογή"}</button>
                 {dirty && <button onClick={() => setTheme(saved)} style={btn("#f3f4f6", "#374151")}>Ακύρωση αλλαγών</button>}
@@ -163,12 +199,23 @@ export default function ThemePage() {
               {dirty && <p style={{ margin: "10px 0 0", fontSize: 12, color: "#d97706" }}>Έχεις αλλαγές που δεν έχουν αποθηκευτεί.</p>}
             </div>
 
+            {/* Season */}
+            <div style={card}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, margin: "0 0 4px" }}>Εποχιακό θέμα</h2>
+              <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 12px" }}>Στολίδια σε κάθε σελίδα της εφαρμογής: λαμπάκια και χιόνι στην αρχική, σκουφάκι στο λογότυπο και στους τίτλους, δωράκι, ταρανδάκι και χιονάνθρωπος. Δεν ενοχλούν τα κουμπιά. Αλλάζει αμέσως, χωρίς Αποθήκευση.</p>
+              {!seasonReady && <p style={{ fontSize: 12, color: "#b45309", margin: "0 0 10px" }}>⚠️ Λείπει το SQL για το εποχιακό θέμα.</p>}
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => saveSeason("none")} style={btn(season === "none" ? "#111827" : "#f3f4f6", season === "none" ? "white" : "#374151")}>Κανένα</button>
+                <button onClick={() => saveSeason("christmas")} style={btn(season === "christmas" ? "#15803d" : "#f3f4f6", season === "christmas" ? "white" : "#374151")}>🎄 Χριστούγεννα</button>
+              </div>
+            </div>
+
             {/* Presets */}
             <div style={card}>
               <h2 style={{ fontSize: 16, fontWeight: 800, margin: "0 0 4px" }}>Συνδυασμοί</h2>
               <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 12px" }}>Πάτα έναν για να αλλάξουν όλα τα χρώματα μαζί (τα βλέπεις δεξιά). Μετά πάτα Αποθήκευση για να πάνε στην εφαρμογή.</p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {[...presets.map(p => ({ ...p, mine: true })), ...BUILT_IN.map((p, i) => ({ id: -1 - i, name: p.name, colors: p.colors, mine: false }))].map(p => (
+                {[...presets.map(p => ({ ...p, mine: true })), ...BUILT_IN.map((p, i) => ({ id: -1 - i, name: p.name, colors: p.colors, mine: false })), ...BUILT_IN_LOGO.map((p, i) => ({ id: -100 - i, name: p.name, colors: norm(p.colors), mine: false }))].map(p => (
                   <div key={p.id} style={{ display: "flex", alignItems: "center", border: "1px solid " + (same(p.colors, theme) ? "#dc2626" : "#e5e7eb"), borderRadius: 12, overflow: "hidden", background: "white" }}>
                     <button onClick={() => setTheme(p.colors)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", border: "none", background: "transparent", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
                       <span style={{ display: "inline-flex", borderRadius: 6, overflow: "hidden", border: "1px solid #e5e7eb" }}>
@@ -197,7 +244,11 @@ export default function ThemePage() {
               {/* home */}
               <div style={{ position: "absolute", left: 0, right: 0, top: 70, display: "flex", justifyContent: "center" }}>
                 <div style={{ width: 170, height: 170, borderRadius: "50%", background: `radial-gradient(circle, ${withAlpha(theme.accent, 0.35)}, transparent 70%)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ width: 120, height: 120, borderRadius: "50%", background: c.card, border: `2px solid ${withAlpha(theme.accent, 0.5)}`, display: "flex", alignItems: "center", justifyContent: "center", color: c.text, fontWeight: 800, fontSize: 20, textAlign: "center", lineHeight: 1.1 }}>REDIE<br />969</div>
+                  <div style={{ width: 120, height: 120, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {theme.logo
+                      ? <div style={{ width: 70, height: 104, background: theme.logo === "accent" ? c.accent : css(theme.logo), WebkitMaskImage: "url(/app-logo.png)", maskImage: "url(/app-logo.png)", WebkitMaskSize: "contain", maskSize: "contain", WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat", WebkitMaskPosition: "center", maskPosition: "center" } as React.CSSProperties} />
+                      : <img src="/app-logo.png" alt="" style={{ height: 104 }} />}
+                  </div>
                 </div>
               </div>
               <div style={{ position: "absolute", top: 145, left: 8, color: c.accent, fontSize: 18 }}>‹</div>
