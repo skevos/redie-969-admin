@@ -31,6 +31,7 @@ const SECTIONS: { title: string; items: { href: string; icon: string; label: str
       { href: "/admin", icon: "📅", label: "Πρόγραμμα" },
       { href: "/producers", icon: "👥", label: "Παραγωγοί" },
       { href: "/content", icon: "📱", label: "App Content" },
+      { href: "/theme", icon: "🎨", label: "Χρώματα εφαρμογής" },
       { href: "/splash", icon: "🚀", label: "Splash Screen" },
       { href: "/archives", icon: "📁", label: "Chat Archives" },
     ],
