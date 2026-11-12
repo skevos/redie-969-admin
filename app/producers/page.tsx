@@ -15,6 +15,7 @@ interface Producer {
   name: string;
   photo_url: string | null;
   bio: string | null;
+  about?: string | null;
   created_at: string;
   username?: string | null;
   is_admin: boolean;
@@ -48,7 +49,7 @@ export default function ProducersPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Producer | null>(null);
   const [isNew, setIsNew] = useState(false);
-  const [form, setForm] = useState({ name: '', bio: '', photo_url: '', username: '', password: '', is_admin: false, show_1: '', show_2: '', chat_color: '#9C27B0', chat_icon: 'headphones', hidden_in_app: false });
+  const [form, setForm] = useState({ name: '', bio: '', photo_url: '', username: '', password: '', is_admin: false, show_1: '', show_2: '', chat_color: '#9C27B0', chat_icon: 'headphones', hidden_in_app: false, about: '' });
   const [knownUsername, setKnownUsername] = useState<string | null | undefined>(undefined); // undefined = not loaded
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -140,7 +141,7 @@ export default function ProducersPage() {
     setIsNew(true);
     setEditing(null);
     setKnownUsername(null);
-    setForm({ name: '', bio: '', photo_url: '', username: '', password: '', is_admin: false, show_1: '', show_2: '', chat_color: '#9C27B0', chat_icon: 'headphones', hidden_in_app: false });
+    setForm({ name: '', bio: '', photo_url: '', username: '', password: '', is_admin: false, show_1: '', show_2: '', chat_color: '#9C27B0', chat_icon: 'headphones', hidden_in_app: false, about: '' });
   }
 
   function openEdit(producer: Producer) {
@@ -150,6 +151,7 @@ export default function ProducersPage() {
     setForm({ 
       name: producer.name || '', 
       bio: producer.bio || '', 
+      about: producer.about || '',
       photo_url: producer.photo_url || '',
       username: producer.username || '',
       password: '',
@@ -170,7 +172,7 @@ export default function ProducersPage() {
   function closeModal() {
     setEditing(null);
     setIsNew(false);
-    setForm({ name: '', bio: '', photo_url: '', username: '', password: '', is_admin: false, show_1: '', show_2: '', chat_color: '#9C27B0', chat_icon: 'headphones', hidden_in_app: false });
+    setForm({ name: '', bio: '', photo_url: '', username: '', password: '', is_admin: false, show_1: '', show_2: '', chat_color: '#9C27B0', chat_icon: 'headphones', hidden_in_app: false, about: '' });
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -229,6 +231,7 @@ export default function ProducersPage() {
         chat_color: form.chat_color || '#9C27B0',
         chat_icon: form.chat_icon || 'headphones',
         hidden_in_app: form.hidden_in_app,
+        ...(form.about.trim() ? { about: form.about.trim() } : {}),
       } })).id }; } catch (e: any) { error = { message: e.message }; }
       if (error) { alert('Σφάλμα: ' + error.message); setSaving(false); return; }
       if (created && (form.username.trim() || form.password)) {
@@ -247,6 +250,7 @@ export default function ProducersPage() {
         chat_icon: form.chat_icon || 'headphones',
       };
       if (form.hidden_in_app !== !!editing.hidden_in_app) updateData.hidden_in_app = form.hidden_in_app;
+      if (form.about.trim() !== (editing.about || '').trim()) updateData.about = form.about.trim() || null;
       let error: { message: string } | null = null;
       try { await producersApi({ op: 'update', id: editing.id, data: updateData }); } catch (e: any) { error = { message: e.message }; }
       if (error) { alert('Σφάλμα: ' + error.message); setSaving(false); return; }
@@ -540,14 +544,28 @@ export default function ProducersPage() {
 
             {/* Bio */}
             <div style={{ marginBottom: 24 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Bio</label>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Ρόλος <span style={{ fontWeight: 400, color: '#9ca3af' }}>(φαίνεται κάτω από το όνομα)</span></label>
               <textarea
                 value={form.bio}
                 onChange={e => setForm({ ...form, bio: e.target.value })}
-                placeholder="Σύντομη περιγραφή..."
-                rows={3}
+                placeholder="π.χ. Dj & Producer"
+                rows={1}
                 style={{ width: '100%', padding: '12px 14px', border: '2px solid #e5e7eb', borderRadius: 10, fontSize: 15, outline: 'none', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
               />
+            </div>
+
+            {/* About: card that opens when a listener taps the producer in the app */}
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>📝 Βιογραφικό <span style={{ fontWeight: 400, color: '#9ca3af' }}>(ανοίγει όταν ο ακροατής πατάει τον παραγωγό)</span></label>
+              <textarea
+                value={form.about}
+                onChange={e => setForm({ ...form, about: e.target.value })}
+                placeholder="Λίγα λόγια για τον παραγωγό: τι μουσική παίζει, από πότε είναι στο REDIE 969..."
+                rows={5}
+                maxLength={600}
+                style={{ width: '100%', padding: '12px 14px', border: '2px solid #e5e7eb', borderRadius: 10, fontSize: 15, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
+              />
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: '#9ca3af', textAlign: 'right' }}>{form.about.length}/600</p>
             </div>
 
             {/* Login Section */}

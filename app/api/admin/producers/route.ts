@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 // hidden_in_app are filtered out for anon by a restrictive RLS policy, so the dashboard reads and
 // writes producers here with the service role (admin session required) and still sees all of them.
 
-const FIELDS = ['name', 'bio', 'photo_url', 'is_admin', 'is_active', 'show_1', 'show_2', 'chat_color', 'chat_icon', 'hidden_in_app', 'sort_order'];
+const FIELDS = ['name', 'bio', 'photo_url', 'is_admin', 'is_active', 'show_1', 'show_2', 'chat_color', 'chat_icon', 'hidden_in_app', 'sort_order', 'about'];
 
 function pick(data: any) {
   const out: Record<string, any> = {};
@@ -29,7 +29,9 @@ export async function GET(req: NextRequest) {
   try {
     const db = getSupabaseAdmin();
     // position in the app (sort_order, 1 = first), then name
-    let res: any = await db.from('producers').select(`${PRODUCER_PUBLIC_COLUMNS}, hidden_in_app, sort_order`)
+    let res: any = await db.from('producers').select(`${PRODUCER_PUBLIC_COLUMNS}, hidden_in_app, sort_order, about`)
+      .order('sort_order', { ascending: true, nullsFirst: false }).order('name');
+    if (res.error && /about/.test(String(res.error.message || ''))) res = await db.from('producers').select(`${PRODUCER_PUBLIC_COLUMNS}, hidden_in_app, sort_order`)
       .order('sort_order', { ascending: true, nullsFirst: false }).order('name');
     if (res.error && /sort_order/.test(String(res.error.message || ''))) res = await db.from('producers').select(`${PRODUCER_PUBLIC_COLUMNS}, hidden_in_app`).order('name');
     if (missingHiddenColumn(res.error)) res = await db.from('producers').select(PRODUCER_PUBLIC_COLUMNS).order('name');
