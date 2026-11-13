@@ -18,6 +18,14 @@ const TYPES: { v: Field["type"]; l: string }[] = [
 const ROLES: { v: NonNullable<Field["role"]>; l: string }[] = [
   { v: "", l: "—" }, { v: "song", l: "Τραγούδι" }, { v: "for", l: "Για ποιον" }, { v: "from", l: "Από ποιον" }, { v: "message", l: "Μήνυμα" },
 ];
+// Ready emojis for the form (click to choose)
+const EMOJIS = [
+  "🎵", "🎶", "🎤", "🎧", "📻", "🎙️", "💌", "❤️", "💘", "🌹", "🎁", "🎉", "🥳", "🎂", "🍾", "🥂",
+  "🎮", "🕹️", "🎲", "🧩", "🏆", "🥇", "⭐", "✨", "🔥", "⚡", "💥", "🎯", "❓", "💡", "📝", "🗳️",
+  "📸", "🎬", "📍", "🏖️", "⛵", "🌊", "☀️", "🌙", "🍕", "☕", "🍦", "🍻", "💃", "🕺", "😍", "😂",
+  "🎄", "🎅", "❄️", "☃️", "🦌", "🔔", "🕯️", "🎆", "🐣", "💐", "🇬🇷", "📣",
+];
+
 const PALETTES: string[][] = [
   ["#7A0F2A", "#F02828", "#FF8A3D"], ["#1E3A8A", "#2D8CFF", "#7DD3FC"], ["#3B0764", "#B14DFF", "#FF3D9A"],
   ["#064E3B", "#22D36B", "#A3E635"], ["#3F2A00", "#FFB020", "#FFE08A"], ["#111827", "#374151", "#6B7280"],
@@ -288,6 +296,12 @@ export default function FormsPage() {
                   <div style={{ display: "grid", gridTemplateColumns: "70px 1fr", gap: 10 }}>
                     <div><span style={lab}>Emoji</span><input style={{ ...input, textAlign: "center", fontSize: 18 }} value={draft.emoji} maxLength={4} onChange={e => set({ emoji: e.target.value })} /></div>
                     <div><span style={lab}>Τίτλος</span><input style={input} value={draft.title} maxLength={60} onChange={e => set({ title: e.target.value })} /></div>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+                    {EMOJIS.map(em => (
+                      <button key={em} type="button" onClick={() => set({ emoji: em })} title="Διάλεξε emoji"
+                        style={{ width: 34, height: 34, fontSize: 19, lineHeight: "34px", padding: 0, borderRadius: 8, cursor: "pointer", background: draft.emoji === em ? "#fee2e2" : "#f9fafb", border: "1px solid " + (draft.emoji === em ? "#dc2626" : "#e5e7eb") }}>{em}</button>
+                    ))}
                   </div>
                   <span style={lab}>Υπότιτλος</span><input style={input} value={draft.subtitle} maxLength={140} onChange={e => set({ subtitle: e.target.value })} />
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 90px", gap: 10 }}>
