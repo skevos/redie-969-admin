@@ -93,7 +93,7 @@ export default function FormsPage() {
   const [sendCard, setSendCard] = useState<{ req: Req; c: Card } | null>(null);
   const focusRef = useRef<{ key: keyof Card; el: HTMLInputElement | null }>({ key: "title", el: null });
 
-  useEffect(() => { loadForms(); loadInbox(); const t = setInterval(loadInbox, 10000); return () => clearInterval(t); }, []);
+  useEffect(() => { loadForms(); loadInbox(); const t = setInterval(loadInbox, 5000); return () => clearInterval(t); }, []);
   useEffect(() => { if (!cardOn) return; const t = setTimeout(() => setCardOn(null), Math.max(0, cardOn.until - Date.now())); return () => clearTimeout(t); }, [cardOn]);
 
   async function loadForms(selectId?: number) {

@@ -40,7 +40,7 @@ export default function SongRequestsPanel({ variant = 'card' }: { variant?: 'car
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 15000);
+    const t = setInterval(load, 5000);
     return () => { clearInterval(t); if (stopTimer.current) clearTimeout(stopTimer.current); };
   }, []);
 
