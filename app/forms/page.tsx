@@ -161,6 +161,19 @@ export default function FormsPage() {
     setTimeout(() => setMsg(""), 5000);
     loadForms(res.data?.id ?? draft.id);
   }
+  // On / off in the app straight from the list (saved at once, no need to open the form)
+  async function toggleActive(f: Form) {
+    if (!f.id) return;
+    setBusy("t" + f.id);
+    const { error } = await adminDb.from("app_forms").update({ is_active: !f.is_active }).eq("id", f.id);
+    setBusy("");
+    if (error) { alert("Σφάλμα: " + error.message); return; }
+    setForms(list => list.map(x => x.id === f.id ? { ...x, is_active: !f.is_active } : x));
+    setDraft(d => d && d.id === f.id ? { ...d, is_active: !f.is_active } : d);
+    setMsg(!f.is_active ? `✅ «${f.title}» ανοιχτή στην εφαρμογή.` : `⏸ «${f.title}» κλειστή — δεν φαίνεται στην εφαρμογή, μένει αποθηκευμένη.`);
+    setTimeout(() => setMsg(""), 4000);
+  }
+
   async function remove() {
     if (!draft?.id || !confirm(`Διαγραφή της φόρμας «${draft.title}»; Τα αιτήματα που ήρθαν από αυτήν μένουν.`)) return;
     const { error } = await adminDb.from("app_forms").delete().eq("id", draft.id);
@@ -247,12 +260,21 @@ export default function FormsPage() {
               {forms.map((f, i) => (
                 <div key={f.id} onClick={() => { setSel(i); setDraft(JSON.parse(JSON.stringify(f))); }}
                   style={{ padding: "9px 10px", borderRadius: 10, cursor: "pointer", marginBottom: 6, background: i === sel && draft?.id ? "#fee2e2" : "#f9fafb", border: "1px solid " + (i === sel && draft?.id ? "#fca5a5" : "#f3f4f6") }}>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{f.emoji} {f.title}</div>
-                  <div style={{ fontSize: 11, color: f.is_active ? "#16a34a" : "#9ca3af" }}>{f.is_active ? "● Ενεργή" : "○ Κρυφή"} · {f.route === "review" ? "πρώτα σε μένα" : "κατευθείαν στους παραγωγούς"}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{f.emoji} {f.title}</div>
+                      <div style={{ fontSize: 11, color: f.is_active ? "#16a34a" : "#9ca3af" }}>{f.is_active ? "● Ενεργή" : "○ Κλειστή"} · {f.route === "review" ? "πρώτα σε μένα" : "στους παραγωγούς"}</div>
+                    </div>
+                    <button title={f.is_active ? "Κλείσιμο στην εφαρμογή" : "Άνοιγμα στην εφαρμογή"} disabled={busy === "t" + f.id}
+                      onClick={e => { e.stopPropagation(); toggleActive(f); }}
+                      style={{ width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer", position: "relative", flexShrink: 0, background: f.is_active ? "#22c55e" : "#d1d5db" }}>
+                      <span style={{ position: "absolute", top: 3, left: f.is_active ? 21 : 3, width: 16, height: 16, borderRadius: 8, background: "white", transition: "left .15s" }} />
+                    </button>
+                  </div>
                 </div>
               ))}
               <button onClick={() => { setSel(-1); setDraft(newForm()); }} style={{ ...btn("#111827"), width: "100%", marginTop: 6 }}>+ Νέα φόρμα</button>
-              <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 10 }}>Με μία ενεργή φόρμα το κουμπί 🎵 την ανοίγει κατευθείαν. Με περισσότερες, ο ακροατής διαλέγει.</p>
+              <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 10 }}>Με τον διακόπτη ανοίγεις/κλείνεις μια φόρμα αμέσως· οι κλειστές μένουν αποθηκευμένες. Με μία ανοιχτή, το κουμπί 🎵 την ανοίγει κατευθείαν· με περισσότερες, ο ακροατής διαλέγει· με καμία, γράφει «Δεν υπάρχει ανοιχτή φόρμα».</p>
             </div>
 
             {draft && previewCard && (
@@ -261,7 +283,7 @@ export default function FormsPage() {
                   <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 6 }}>
                     <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0, flex: 1 }}>{draft.id ? "Επεξεργασία φόρμας" : "Νέα φόρμα"}</h2>
                     <label style={{ fontSize: 13, fontWeight: 700, color: draft.is_active ? "#16a34a" : "#6b7280", cursor: "pointer" }}>
-                      <input type="checkbox" checked={draft.is_active} onChange={e => set({ is_active: e.target.checked })} /> Ενεργή στην εφαρμογή</label>
+                      <input type="checkbox" checked={draft.is_active} onChange={e => set({ is_active: e.target.checked })} /> Ενεργή στην εφαρμογή (μετά την Αποθήκευση)</label>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "70px 1fr", gap: 10 }}>
                     <div><span style={lab}>Emoji</span><input style={{ ...input, textAlign: "center", fontSize: 18 }} value={draft.emoji} maxLength={4} onChange={e => set({ emoji: e.target.value })} /></div>
