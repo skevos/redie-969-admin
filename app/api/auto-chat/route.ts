@@ -57,6 +57,12 @@ async function getAutoMessages() {
 }
 
 // Current weekday (0=Monday) and time in Athens
+// Athens calendar date (YYYY-MM-DD), offset in days from today
+function athensDate(offsetDays = 0) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Athens', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(new Date(Date.now() + offsetDays * 86400000));
+}
+
 function getAthensNow() {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Athens',
@@ -122,20 +128,27 @@ export async function GET(request: Request) {
       .eq('day_of_week', tomorrow)
       .order('start_time');
 
-    const currentShow = todayShows?.find(show => {
+    // ⏸ «Δεν γίνεται»: a show paused for that date opens no chat and sends no notification
+    const notSkipped = (date: string) => (s: any) => String(s?.skip_date || '').slice(0, 10) !== date;
+    const dToday = athensDate(0), dYesterday = athensDate(-1), dTomorrow = athensDate(1);
+    const todayList = (todayShows || []).filter(notSkipped(dToday));
+    const yesterdayList = (yesterdayShows || []).filter(notSkipped(dYesterday));
+    const tomorrowList = (tomorrowShows || []).filter(notSkipped(dTomorrow));
+
+    const currentShow = todayList.find(show => {
       const { start, end } = showRange(show);
       return currentTimeMinutes >= start && currentTimeMinutes < end;
-    }) || yesterdayShows?.find(show => {
+    }) || yesterdayList.find(show => {
       // Yesterday's show still running past midnight
       const { start, end } = showRange(show);
       const t = currentTimeMinutes + 1440;
       return t >= start && t < end;
     });
 
-    const upcomingShow = todayShows?.find(show => {
+    const upcomingShow = todayList.find(show => {
       const minutesUntilStart = showRange(show).start - currentTimeMinutes;
       return minutesUntilStart > 0 && minutesUntilStart <= 15;
-    }) || tomorrowShows?.find(show => {
+    }) || tomorrowList.find(show => {
       // Show starting just after midnight
       const minutesUntilStart = showRange(show).start + 1440 - currentTimeMinutes;
       return minutesUntilStart > 0 && minutesUntilStart <= 15;

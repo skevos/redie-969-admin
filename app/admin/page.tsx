@@ -87,6 +87,35 @@ export default function SchedulePage() {
     }
   }
 
+  // ⏸ «Δεν γίνεται»: the next airing of a show is cancelled (shows.skip_date). No auto chat, no notifications,
+  // and (app 1.0.10+) no "εκπομπή" in Now Playing. Pressing again brings it back.
+  function athensDate(offsetDays = 0) {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Athens', year: 'numeric', month: '2-digit', day: '2-digit' })
+      .format(new Date(Date.now() + offsetDays * 86400000));
+  }
+  function nextAiring(show: any) {
+    const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Athens', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+    const g = (t: string) => p.find(x => x.type === t)?.value || '';
+    const today = Math.max(0, ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(g('weekday')));
+    const nowMin = (parseInt(g('hour'), 10) % 24) * 60 + parseInt(g('minute'), 10);
+    const [eh, em] = String(show.end_time || '00:00').split(':').map(Number);
+    const [sh, sm] = String(show.start_time || '00:00').split(':').map(Number);
+    let endMin = eh * 60 + em; if (endMin <= sh * 60 + sm) endMin += 1440;
+    let ahead = (Number(show.day_of_week) - today + 7) % 7;
+    if (ahead === 0 && nowMin >= endMin) ahead = 7;
+    return athensDate(ahead);
+  }
+  const skippedFor = (show: any) => { const d = String(show.skip_date || '').slice(0, 10); return d && d >= athensDate(-1) ? d : ''; };
+  const fmtDate = (d: string) => { const [y, m, dd] = d.split('-'); return `${dd}/${m}`; };
+  async function toggleSkip(show: any) {
+    const cur = skippedFor(show);
+    const date = cur ? null : nextAiring(show);
+    if (date && !confirm(`«${show.title}» δεν γίνεται στις ${fmtDate(date)};\nΔεν θα ανοίξει chat και δεν θα σταλεί ειδοποίηση.`)) return;
+    const { error } = await adminDb.from('shows').update({ skip_date: date }).eq('id', show.id);
+    if (error) { alert(/skip_date/.test(error.message) ? 'Λείπει το SQL για το «Δεν γίνεται» (shows.skip_date).' : error.message); return; }
+    loadShows();
+  }
+
   async function toggleLive(show: any) {
     if (show.is_live) {
       const { error } = await adminDb.from('shows').update({ is_live: false }).eq('id', show.id);
@@ -212,6 +241,7 @@ export default function SchedulePage() {
                           <div style={{ textAlign: 'right', marginRight: 8 }}>
                             <p style={{ fontWeight: 600, color: '#1f2937', margin: 0, fontSize: 14 }}>{show.start_time?.slice(0,5)} - {show.end_time?.slice(0,5)}</p>
                             {show.is_live && <span style={{ background: '#e53935', color: 'white', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>🔴 LIVE</span>}
+                            {skippedFor(show) && <span style={{ display: 'inline-block', marginTop: 4, background: '#fef3c7', color: '#92400e', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>⏸ Δεν γίνεται {fmtDate(skippedFor(show))}</span>}
                           </div>
                           {(reminderCounts[String(show.id)] || 0) > 0 && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'linear-gradient(135deg, #fefce8 0%, #fef08a 100%)', padding: '6px 12px', borderRadius: 20, border: '1px solid #fde047' }}>
@@ -222,6 +252,10 @@ export default function SchedulePage() {
                           <div style={{ display: 'flex', gap: 8 }}>
                             <button onClick={() => toggleLive(show)} style={{ padding: '8px 14px', background: show.is_live ? '#fef2f2' : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: show.is_live ? '#e53935' : 'white', border: show.is_live ? '1px solid #fecaca' : 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                               {show.is_live ? 'Stop' : 'Go Live'}
+                            </button>
+                            <button onClick={() => toggleSkip(show)} title={skippedFor(show) ? 'Η εκπομπή γίνεται κανονικά' : 'Η επόμενη εκπομπή δεν γίνεται: χωρίς chat και ειδοποιήσεις'}
+                              style={{ padding: '8px 14px', background: skippedFor(show) ? '#fef3c7' : '#f3f4f6', color: skippedFor(show) ? '#92400e' : '#374151', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                              {skippedFor(show) ? '▶ Γίνεται' : '⏸ Δεν γίνεται'}
                             </button>
                             <button onClick={() => openEdit(show)} style={{ padding: '8px 14px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
                             <button onClick={() => deleteShow(show.id)} style={{ padding: '8px 14px', background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>🗑</button>
