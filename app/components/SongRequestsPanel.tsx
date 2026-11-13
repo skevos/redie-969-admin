@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 // Listener song requests / dedications from the app (table song_requests).
 // Used in the Studio (variant "card") and in Producer Chat (variant "floating").
 
-type Req = { id: number; song: string; for_name: string | null; from_name: string | null; message: string | null; created_at: string };
+type Req = { id: number; song: string; for_name: string | null; from_name: string | null; message: string | null; created_at: string; answers?: { label: string; value: string; role?: string }[] | null };
 
 const AUTO_STOP_SECONDS = 45; // dedication animation stops by itself after this
 
@@ -111,6 +111,9 @@ export default function SongRequestsPanel({ variant = 'card' }: { variant?: 'car
                 </p>
               )}
               {r.message && <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 2px 0', fontStyle: 'italic', wordBreak: 'break-word' }}>«{r.message}»</p>}
+              {(r.answers || []).filter(a => !a.role).map((a, i) => (
+                <p key={i} style={{ fontSize: 12, color: '#374151', margin: '0 0 2px 0', wordBreak: 'break-word' }}>{a.label}: <b>{a.value}</b></p>
+              ))}
               <p style={{ fontSize: 10, color: '#9ca3af', margin: '0 0 8px 0' }}>{time(r.created_at)}</p>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button disabled={busy === r.id} onClick={() => act(r, 'air')} title="Σημειώνεται ως παιγμένο και παίζει η Αφιέρωση σε όλα τα κινητά"

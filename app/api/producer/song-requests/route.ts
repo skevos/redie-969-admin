@@ -23,6 +23,31 @@ function missingTable(e: any) {
   return e?.code === '42P01' || e?.code === 'PGRST205' || /song_requests|requests_open/.test(m) && /does not exist|schema cache|column/i.test(m);
 }
 
+// Form columns (redie_forms.sql). Before that SQL runs, fall back to the old columns.
+const BASE_COLS = 'id, song, for_name, from_name, message, status, created_at';
+const FORM_COLS = BASE_COLS + ', form_id, answers, needs_review';
+const noFormCols = (e: any) => /form_id|answers|needs_review/.test(String(e?.message || ''));
+
+async function newRequests(db: any, since: string, review: boolean) {
+  const q = (cols: string, withReview: boolean) => {
+    let x = db.from('song_requests').select(cols).eq('status', 'new').gte('created_at', since);
+    if (withReview) x = x.eq('needs_review', review);
+    return x.order('created_at', { ascending: true }).limit(100);
+  };
+  const r = await q(FORM_COLS, true);
+  if (r.error && noFormCols(r.error)) return review ? { data: [], error: null } : await q(BASE_COLS, false);
+  return r;
+}
+
+// Card on every phone (app_animations type 'form_card'), cleaned up before it is stored
+function cleanCard(c: any) {
+  const hex = (v: any, d: string) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toUpperCase() : d);
+  const str = (v: any) => String(v ?? '').slice(0, 200);
+  const colors = Array.isArray(c?.colors) ? c.colors.slice(0, 4).map((x: any) => hex(x, '#F02828')) : ['#7A0F2A', '#F02828', '#FF8A3D'];
+  const duration = Math.min(Math.max(Number(c?.duration) || 15, 5), 120);
+  return { colors, text: hex(c?.text, '#FFFFFF'), label: str(c?.label), title: str(c?.title), subtitle: str(c?.subtitle), message: str(c?.message), footer: str(c?.footer), duration };
+}
+
 // GET -> { open, requests: [...new, last 24h], playedToday }
 export async function GET(req: NextRequest) {
   const s = await session(req);
@@ -52,8 +77,16 @@ export async function GET(req: NextRequest) {
       });
     }
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    const { data, error } = await db.from('song_requests').select('id, song, for_name, from_name, message, status, created_at')
-      .eq('status', 'new').gte('created_at', since).order('created_at', { ascending: true }).limit(100);
+    // 📝 Φόρμες & Αιτήματα inbox (admin only): waiting for the admin + already with the producers
+    if (req.nextUrl.searchParams.get('view') === 'inbox') {
+      if (!String(s.who).startsWith('admin')) return jsonError('Forbidden', 403);
+      const week = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+      const p = await newRequests(db, week, true);
+      const n = await newRequests(db, since, false);
+      if (n.error) return missingTable(n.error) ? NextResponse.json({ setupNeeded: true, pending: [], sent: [] }) : jsonError(n.error.message, 500);
+      return NextResponse.json({ pending: (p.data || []).reverse(), sent: (n.data || []).reverse(), setupNeeded: !!(p.error) });
+    }
+    const { data, error } = await newRequests(db, since, false);
     if (error) return missingTable(error) ? NextResponse.json({ setupNeeded: true, open: false, requests: [] }) : jsonError(error.message, 500);
     const { count } = await db.from('song_requests').select('id', { count: 'exact', head: true }).eq('status', 'played').gte('created_at', since);
     const st = await db.from('settings').select('requests_open').eq('id', 1).maybeSingle();
@@ -83,6 +116,24 @@ export async function POST(req: NextRequest) {
       if (data && (data as any).is_active && (!b.started_at || st.started_at === b.started_at)) {
         await db.from('app_animations').update({ is_active: false }).eq('id', (data as any).id);
       }
+      return NextResponse.json({ ok: true });
+    }
+    if (b?.action === 'card_stop') {
+      await db.from('app_animations').update({ is_active: false }).eq('type', 'form_card');
+      return NextResponse.json({ ok: true });
+    }
+    if (b?.action === 'card') {
+      const settings = { ...cleanCard(b.settings), started_at: new Date().toISOString(), request_id: b.id ?? null };
+      const { data: up, error } = await db.from('app_animations').update({ is_active: true, settings }).eq('type', 'form_card').select('id');
+      if (error) return jsonError(error.message, 400);
+      if (!up || up.length === 0) return jsonError('Λείπει το SQL για τις φόρμες (redie_forms.sql)', 400);
+      return NextResponse.json({ ok: true, started_at: settings.started_at });
+    }
+    if (b?.action === 'approve') {
+      if (!String(s.who).startsWith('admin')) return jsonError('Forbidden', 403);
+      if (!b?.id) return jsonError('Bad request', 400);
+      const { error } = await db.from('song_requests').update({ needs_review: false }).eq('id', b.id);
+      if (error) return jsonError(error.message, 400);
       return NextResponse.json({ ok: true });
     }
     if (!['air', 'played', 'reject'].includes(b?.action) || !b?.id) return jsonError('Bad request', 400);

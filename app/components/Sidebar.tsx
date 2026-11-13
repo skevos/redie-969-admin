@@ -20,6 +20,7 @@ const SECTIONS: { title: string; items: { href: string; icon: string; label: str
     items: [
       { href: "/studio", icon: "💬", label: "Studio Chat" },
       { href: "/requests", icon: "🎵", label: "Αιτήματα" },
+      { href: "/forms", icon: "📝", label: "Φόρμες & Αιτήματα" },
       { href: "/polls", icon: "🗳️", label: "Polls" },
       { href: "/animations", icon: "✨", label: "Animations" },
       { href: "/notifications", icon: "🔔", label: "Notifications" },

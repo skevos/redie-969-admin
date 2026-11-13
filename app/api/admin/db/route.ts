@@ -11,7 +11,7 @@ const TABLES = new Set([
   'shows', 'show_sponsors', 'settings', 'splash_config', 'app_animations',
   'presence_moments', 'presence_geo_boost',
   'chat_sponsored_messages', 'chat_messages', 'chat_reports', 'chat_rooms', 'chat_config', 'chat_archives',
-  'app_notifications', 'fcm_tokens', 'polls', 'poll_votes', 'song_requests', 'app_theme_presets',
+  'app_notifications', 'fcm_tokens', 'polls', 'poll_votes', 'song_requests', 'app_theme_presets', 'app_forms',
 ]);
 // Read-only through here (closed to the public key, phase 2b)
 const READ_TABLES = new Set([...TABLES, 'app_analytics', 'listening_sessions', 'app_sessions', 'app_session_places', 'moment_wins']);
