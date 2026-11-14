@@ -19,6 +19,7 @@ const SECTIONS: { title: string; items: { href: string; icon: string; label: str
     title: 'Στον αέρα',
     items: [
       { href: "/studio", icon: "💬", label: "Studio Chat" },
+      { href: "/stream", icon: "📡", label: "Stream" },
       { href: "/requests", icon: "🎵", label: "Αιτήματα" },
       { href: "/forms", icon: "📝", label: "Φόρμες & Αιτήματα" },
       { href: "/polls", icon: "🗳️", label: "Polls" },

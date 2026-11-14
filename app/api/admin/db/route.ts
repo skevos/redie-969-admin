@@ -14,7 +14,7 @@ const TABLES = new Set([
   'app_notifications', 'fcm_tokens', 'polls', 'poll_votes', 'song_requests', 'app_theme_presets', 'app_forms',
 ]);
 // Read-only through here (closed to the public key, phase 2b)
-const READ_TABLES = new Set([...TABLES, 'app_analytics', 'listening_sessions', 'app_sessions', 'app_session_places', 'moment_wins']);
+const READ_TABLES = new Set([...TABLES, 'app_analytics', 'listening_sessions', 'app_sessions', 'app_session_places', 'moment_wins', 'stream_events', 'stream_watch']);
 const OPS = new Set(['insert', 'update', 'delete', 'upsert', 'select']);
 const FILTERS = new Set(['eq', 'neq', 'in', 'or', 'is', 'gt', 'gte', 'lt', 'lte']);
 const IDENT = /^[a-z_][a-z0-9_]*$/;
