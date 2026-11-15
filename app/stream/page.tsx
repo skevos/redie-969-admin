@@ -4,15 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { adminDb } from "../lib/adminDb";
 import Sidebar from "../components/Sidebar";
 
-type Ev = { id: number; kind: "fallback" | "dip"; started_at: string; ended_at: string | null; fallback_title: string | null; detail: any };
+type Ev = { id: number; kind: "fallback" | "dip" | "server" | "report"; started_at: string; ended_at: string | null; fallback_title: string | null; detail: any };
 
 const card: React.CSSProperties = { background: "white", border: "1px solid #e5e7eb", borderRadius: 16, padding: 18, marginBottom: 16 };
 const fmt = (iso: string) => new Date(iso).toLocaleString("el-GR", { timeZone: "Europe/Athens", weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 const dayKey = (iso: string) => new Date(iso).toLocaleDateString("el-GR", { timeZone: "Europe/Athens", day: "2-digit", month: "2-digit" });
 const hourOf = (iso: string) => Number(new Date(iso).toLocaleString("en-GB", { timeZone: "Europe/Athens", hour: "2-digit", hour12: false })) % 24;
 function dur(e: Ev) {
-  if (e.kind === "dip") return "λίγα δευτ.";
   if (!e.ended_at) return "τώρα";
+  if (e.ended_at === e.started_at) return "σύντομη";
   const s = Math.max(0, Math.round((new Date(e.ended_at).getTime() - new Date(e.started_at).getTime()) / 1000));
   return s < 60 ? `~${s}″` : `~${Math.round(s / 60)}′`;
 }
@@ -65,7 +65,7 @@ export default function StreamPage() {
             <div style={{ fontSize: 13, color: "#6b7280" }}>Διακοπές ({days} ημέρες)</div>
             <div style={{ fontSize: 32, fontWeight: 800, color: events.length ? "#dc2626" : "#16a34a" }}>{events.length}</div>
             <select value={days} onChange={e => setDays(Number(e.target.value))} style={{ padding: "4px 8px", borderRadius: 8, border: "1px solid #d1d5db" }}>
-              <option value={1}>Σήμερα</option><option value={7}>7 ημέρες</option><option value={30}>30 ημέρες</option>
+              <option value={1}>Σήμερα</option><option value={7}>7 ημέρες</option><option value={30}>30 ημέρες</option><option value={60}>60 ημέρες</option>
             </select>
           </div>
         </div>
@@ -93,8 +93,8 @@ export default function StreamPage() {
                 <tr key={e.id} style={{ borderTop: "1px solid #f3f4f6" }}>
                   <td style={{ padding: 6, whiteSpace: "nowrap" }}>{fmt(e.started_at)}</td>
                   <td style={{ padding: 6 }}>{dur(e)}</td>
-                  <td style={{ padding: 6 }}><b>{[e.fallback_title, ...((e.detail?.titles || []) as string[]).filter((t: string) => t !== e.fallback_title)].filter(Boolean).join(", ") || "—"}</b>{e.detail?.live_song ? <span style={{ color: "#9ca3af" }}> (μέσα στο «{e.detail.live_song}»)</span> : null}</td>
-                  <td style={{ padding: 6, color: "#6b7280" }}>{e.kind === "dip" ? "σύντομη (από ιστορικό)" : "πιάστηκε ζωντανά"}</td>
+                  <td style={{ padding: 6 }}><b>{(() => { const all = [e.fallback_title, ...((e.detail?.titles || []) as string[]).filter((t: string) => t !== e.fallback_title)].filter(Boolean) as string[]; return all.length > 3 ? all.slice(0, 3).join(", ") + ` … +${all.length - 3}` : all.join(", ") || "—"; })()}</b>{e.detail?.live_song ? <span style={{ color: "#9ca3af" }}> (μέσα στο «{e.detail.live_song}»)</span> : null}</td>
+                  <td style={{ padding: 6, color: "#6b7280" }}>{e.kind === "report" ? "Radio.co αναφορά" : e.kind === "fallback" ? "πιάστηκε ζωντανά" : "από ιστορικό Radio.co"}{(e.detail?.titles?.length || 0) > 1 ? ` · ${e.detail.titles.length} τραγούδια` : ""}</td>
                 </tr>
               ))}</tbody>
             </table>
