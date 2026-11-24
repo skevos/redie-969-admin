@@ -9,7 +9,7 @@ function isPublic(pathname: string): boolean {
   if (STATIC_EXT.test(pathname)) return true;
   if (pathname.startsWith('/_next/')) return true;
   if (pathname.startsWith('/api/auth/')) return true;
-  for (const p of ['/login', '/logout', '/app', '/producer-chat']) {
+  for (const p of ['/login', '/logout', '/app', '/producer-chat', '/site']) {
     if (pathname === p || pathname.startsWith(p + '/')) return true;
   }
   return false;
