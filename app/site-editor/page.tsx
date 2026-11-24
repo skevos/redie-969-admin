@@ -79,7 +79,7 @@ export default function SiteEditor() {
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: "#111827", margin: 0 }}>🌐 Ιστοσελίδα</h1>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>Ό,τι αλλάζεις φαίνεται αμέσως δεξιά. Το κοινό το βλέπει μόνο όταν πατήσεις «Δημοσίευση». {publishedAt ? `Τελευταία δημοσίευση: ${new Date(publishedAt).toLocaleString("el-GR")}` : "Δεν έχει δημοσιευτεί ακόμα."}</div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>Ό,τι αλλάζεις φαίνεται αμέσως δεξιά. Το κοινό το βλέπει μόνο όταν πατήσεις «Δημοσίευση» (φαίνεται στη δημόσια σελίδα σε έως 1 λεπτό). {publishedAt ? `Τελευταία δημοσίευση: ${new Date(publishedAt).toLocaleString("el-GR")}` : "Δεν έχει δημοσιευτεί ακόμα."}</div>
           </div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
             {msg && <span style={{ fontSize: 13, color: "#374151" }}>{msg}</span>}
@@ -119,7 +119,7 @@ export default function SiteEditor() {
           </div>
 
           <div style={{ flex: 1, minWidth: 0, background: "#e5e7eb", borderRadius: 14, display: "flex", justifyContent: "center", overflow: "hidden" }}>
-            <iframe ref={frame} src="/site?preview=1" onLoad={push} title="Προεπισκόπηση" style={{ width: device === "mobile" ? 390 : "100%", height: "100%", border: 0, background: "#0b0b0f", borderRadius: device === "mobile" ? 24 : 0 }} />
+            <iframe ref={frame} src="/site-editor/preview" onLoad={push} title="Προεπισκόπηση" style={{ width: device === "mobile" ? 390 : "100%", height: "100%", border: 0, background: "#0b0b0f", borderRadius: device === "mobile" ? 24 : 0 }} />
           </div>
         </div>
       </main>

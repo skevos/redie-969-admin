@@ -1,40 +1,30 @@
-"use client";
-// Δημόσια ιστοσελίδα σταθμού: δείχνει τη «δημοσιευμένη» έκδοση.
-// Με ?preview=1 (μέσα στο dashboard) δείχνει το πρόχειρο και ενημερώνεται live από τον editor.
-import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+// Δημόσια ιστοσελίδα σταθμού (/site).
+// Φτιάχνεται στον server και κρατιέται έτοιμη για 60″: όσοι κι αν τη δουν, η βάση της εφαρμογής
+// διαβάζεται το πολύ μία φορά το λεπτό. Η μουσική και το «Παίζει τώρα» έρχονται απευθείας από το Radio.co.
 import SiteView from "./SiteView";
-import { DEFAULT_CONTENT, SiteContent, withDefaults } from "./content";
+import { withDefaults } from "./content";
 
-export default function SitePage() {
-  const [c, setC] = useState<SiteContent | null>(null);
-  const [shows, setShows] = useState<any[]>([]);
-  const [producers, setProducers] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>(null);
+export const revalidate = 60;
 
-  useEffect(() => {
-    const preview = new URLSearchParams(window.location.search).get("preview") === "1";
-    (async () => {
-      const [p, s, pr, st] = await Promise.all([
-        supabase.from("site_pages").select("draft, published").eq("id", "home").maybeSingle(),
-        supabase.from("shows").select("*"),
-        supabase.from("producers").select("*"),
-        supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
-      ]);
-      const row: any = p.data || {};
-      setC(withDefaults(preview ? row.draft || row.published : row.published || row.draft));
-      setShows(s.data || []);
-      setProducers(pr.data || []);
-      setSettings(st.data || null);
-    })();
-    if (!preview) return;
-    const onMsg = (e: MessageEvent) => {
-      if (e.origin === window.location.origin && e.data?.type === "site-draft") setC(withDefaults(e.data.content));
-    };
-    window.addEventListener("message", onMsg);
-    window.parent?.postMessage({ type: "site-ready" }, window.location.origin);
-    return () => window.removeEventListener("message", onMsg);
-  }, []);
+const SB = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://vbfedezlshgmrevabyeh.supabase.co";
+const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZiZmVkZXpsc2hnbXJldmFieWVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgyNDU2MTYsImV4cCI6MjA4MzgyMTYxNn0.2OVY8gcHnKAltiPB4OaO8EJ8mA7lmPJN6feAJa0dkts";
 
-  return <SiteView c={c || DEFAULT_CONTENT} shows={shows} producers={producers} settings={settings} />;
+async function get(path: string): Promise<any[]> {
+  try {
+    const r = await fetch(`${SB}/rest/v1/${path}`, { headers: { apikey: KEY, Authorization: `Bearer ${KEY}` }, next: { revalidate: 60 } });
+    if (!r.ok) return [];
+    const j = await r.json();
+    return Array.isArray(j) ? j : [];
+  } catch { return []; }
+}
+
+export default async function SitePage() {
+  const [page, shows, producers, settings] = await Promise.all([
+    get("site_pages?id=eq.home&select=published,draft"),
+    get("shows?select=id,title,producer_name,day_of_week,start_time,end_time,image_url,is_active,description&is_active=eq.true"),
+    get("producers?select=id,name,photo_url,bio,show_1,show_2,is_active,hidden_in_app,sort_order&is_active=eq.true"),
+    get("settings?id=eq.1&select=stream_url,facebook_url,instagram_url,tiktok_url,youtube_url,ios_store_url,android_store_url"),
+  ]);
+  const row = page[0] || {};
+  return <SiteView c={withDefaults(row.published || row.draft)} shows={shows} producers={producers} settings={settings[0] || null} />;
 }
